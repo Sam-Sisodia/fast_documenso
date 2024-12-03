@@ -8,3 +8,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Define Base here
 Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()  # Create a new session
+    try:
+        yield db  # Yield the session to the route
+    finally:
+        db.close() 

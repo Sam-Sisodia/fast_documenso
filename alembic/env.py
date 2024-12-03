@@ -19,7 +19,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 from core.database import Base
-from apps.users.models import School
+from apps.users.models import User
 # target_metadata = None
 target_metadata = Base.metadata
 

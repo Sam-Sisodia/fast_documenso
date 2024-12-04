@@ -16,6 +16,7 @@ router = APIRouter()
 from apps.users.utils import get_current_user
 from datetime import datetime
 from typing import List
+from typing import Optional
 
 @router.post("/register",response_model=schemas.UserResponse)
 def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -40,10 +41,7 @@ def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return JSONResponse(
-        content={"msg": "User successfully registered"}, 
-        status_code=201
-    )
+    return new_user
   
 
 
@@ -129,9 +127,21 @@ async def upload_document(
 @router.get("/user_document/", response_model=List[schemas.UserDocuments])
 async def get_user_document(
     userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
-    db: Session = Depends(get_db),  # Database session dependency
+    db: Session = Depends(get_db), 
+    documentId: Optional[int] = None # Database session dependency
 ):
     # Fetch documents for the given userId
+    if  documentId:
+        document = db.query(models.Document).filter(
+            models.Document.userId == userId.id,
+            models.Document.id == documentId
+        ).first()
+
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found for the user")
+
+        return [document]
+
     documents = db.query(models.Document).filter(models.Document.userId == userId.id).all()
     
     if not documents:

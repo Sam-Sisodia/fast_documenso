@@ -90,7 +90,9 @@ def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
     # Generate a JWT token
     access_token = create_access_token(data={"sub": user.email})
     refresh_token = create_refresh_token(data={"sub": user.email})
-    return JSONResponse({"access_token": access_token, "token_type": "bearer","refresh_token": refresh_token,})
+    return JSONResponse({"access_token": access_token, 
+                         "token_type": "bearer","refresh_token": refresh_token,
+                         "expire_time": utils.ACCESS_TOKEN_EXPIRE_MINUTES})
 
 
 

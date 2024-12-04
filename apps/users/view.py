@@ -2,11 +2,11 @@
 from fastapi import APIRouter
 
 import base64
-from fastapi import APIRouter, HTTPException, Depends,status
+from fastapi import APIRouter, HTTPException, Depends,status,UploadFile,File
 from sqlalchemy.orm import Session
 
 from apps.users import models,schemas,utils
-from apps.users.models import User
+from apps.users.models import User,Document
 # from .utils import hash_password
 from fastapi.responses import JSONResponse
 from core.database import get_db
@@ -14,7 +14,7 @@ from apps.users.utils import verify_password ,create_access_token,create_refresh
 
 router = APIRouter()
 from apps.users.utils import get_current_user
-
+from datetime import datetime
 
 @router.post("/register",response_model=schemas.UserResponse)
 def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -32,7 +32,9 @@ def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
     new_user = User(
         username=request.username,
         email=request.email,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        signature =request.signature
+
     )
     db.add(new_user)
     db.commit()
@@ -41,7 +43,6 @@ def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
         content={"msg": "User successfully registered"}, 
         status_code=201
     )
-  
   
 
 
@@ -98,10 +99,42 @@ def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
 
 
 
+@router.post("/upload_document/")
+async def upload_document(
+    file: UploadFile = File(...),  # The uploaded file
+    userId: int = Depends(get_current_user),  # Get the current user (replace this with your logic)
+    db: Session = Depends(get_db),  # Database session
+):
+    # Ensure the file is a PDF
+    
+    if file.content_type != 'application/pdf':
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
+    # Read the file content as binary data
+    file_content = await file.read()
+    encoded_content = base64.b64encode(file_content).decode('utf-8')
+    
+
+    document = Document(
+        title=file.filename,  # You can use a custom naming convention
+        userId=userId.id,  # Associate the document with the user
+          # You can customize the title as needed
+        file_data=encoded_content , # Store the binary file content
+        createdAt=datetime.utcnow(),
+        updatedAt=datetime.utcnow(),
+    )
+
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+
+    return {"message": f"Document '{file.filename}' uploaded successfully!", "document_id": document.id}
 
 
 @router.get("/hii")
-def hi_root(db:Session=Depends(get_current_user)):
+def hi_root(user:Session=Depends(get_current_user)):
+    # Assuming `db` is the user model instance with `id` attribute
+    print(f"User ID: {user.email}")
     return {"hi": "how are yiu "}
 
 

@@ -15,6 +15,7 @@ from apps.users.utils import verify_password ,create_access_token,create_refresh
 router = APIRouter()
 from apps.users.utils import get_current_user
 from datetime import datetime
+from typing import List
 
 @router.post("/register",response_model=schemas.UserResponse)
 def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -95,10 +96,6 @@ def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
 
 
 
-
-
-
-
 @router.post("/upload_document/")
 async def upload_document(
     file: UploadFile = File(...),  # The uploaded file
@@ -114,7 +111,6 @@ async def upload_document(
     file_content = await file.read()
     encoded_content = base64.b64encode(file_content).decode('utf-8')
     
-
     document = Document(
         title=file.filename,  # You can use a custom naming convention
         userId=userId.id,  # Associate the document with the user
@@ -123,12 +119,25 @@ async def upload_document(
         createdAt=datetime.utcnow(),
         updatedAt=datetime.utcnow(),
     )
-
     db.add(document)
     db.commit()
     db.refresh(document)
 
     return {"message": f"Document '{file.filename}' uploaded successfully!", "document_id": document.id}
+
+
+@router.get("/user_document/", response_model=List[schemas.UserDocuments])
+async def get_user_document(
+    userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
+    db: Session = Depends(get_db),  # Database session dependency
+):
+    # Fetch documents for the given userId
+    documents = db.query(models.Document).filter(models.Document.userId == userId.id).all()
+    
+    if not documents:
+        raise HTTPException(status_code=404, detail="Documents not found for the user")
+
+    return documents
 
 
 @router.get("/hii")

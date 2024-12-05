@@ -6,17 +6,20 @@ from fastapi import APIRouter, HTTPException, Depends,status,UploadFile,File
 from sqlalchemy.orm import Session
 
 from apps.users import models,schemas,utils
-from apps.users.models import User,Document,FieldType
+from apps.users.models import User,Document,FieldType,Recipient
 # from .utils import hash_password
 from fastapi.responses import JSONResponse
 from core.database import get_db
+from sqlalchemy.exc import IntegrityError
 from apps.users.utils import verify_password ,create_access_token,create_refresh_token,decode_access_token
 
-router = APIRouter()
+
 from apps.users.utils import get_current_user
 from datetime import datetime
 from typing import List
-from typing import Optional
+router = APIRouter()
+
+
 
 @router.post("/register",response_model=schemas.UserResponse)
 def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -97,45 +100,7 @@ def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
 
 
 
-# @router.post("/upload_document/")
-# async def upload_document(
-#     file: UploadFile = File(...),  # The uploaded file
-#     userId: int = Depends(get_current_user),  # Get the current user (replace this with your logic)
-#     db: Session = Depends(get_db),  # Database session
-# ):
-#     # Ensure the file is a PDF
-    
-#     if file.content_type != 'application/pdf':
-#         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-
-#     # Read the file content as binary data
-#     file_content = await file.read()
-#     encoded_content = base64.b64encode(file_content).decode('utf-8')
-    
-#     document = Document(
-#         title=file.filename,  # You can use a custom naming convention
-#         userId=userId.id,  # Associate the document with the user
-#           # You can customize the title as needed
-#         file_data=encoded_content , # Store the binary file content
-#         createdAt=datetime.utcnow(),
-#         updatedAt=datetime.utcnow(),
-#     )
-#     db.add(document)
-#     db.commit()
-#     db.refresh(document)
-
-#     return {"message": f"Document '{file.filename}' uploaded successfully!", "document_id": document.id}
-
-
-
-
-
-
-
-
-
 class DocumentManager:
-    @staticmethod
     @router.post("/upload_document/")
     async def upload_document(
         file: UploadFile = File(...),  # The uploaded file
@@ -167,8 +132,8 @@ class DocumentManager:
 
 
     
-    @staticmethod
-    @router.get("/user_document/", response_model=List[schemas.UserDocuments])
+    
+    @router.get("/user_documents/", response_model=List[schemas.UserDocuments])
     async def get_user_document(
         userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
         db: Session = Depends(get_db)):
@@ -178,9 +143,10 @@ class DocumentManager:
         if not documents:
             raise HTTPException(status_code=404, detail="Documents not found for the user")
 
-        return documents
+        # return documents
+        return [schemas.UserDocuments.from_orm(doc) for doc in documents]
 
-    @staticmethod
+    
     @router.get("/user_document/{id}", response_model=schemas.UserDocument)
     async def get_single_document(
         id: int,  # Path parameter to get the document id from the URL
@@ -198,8 +164,9 @@ class DocumentManager:
 
         return document 
     
+    
 
-    @staticmethod
+    
     @router.patch("/update_document/{id}", response_model=schemas.UserDocument)
     async def update_document(
         id: int,  # Path parameter to get the document id from the URL
@@ -223,13 +190,37 @@ class DocumentManager:
         db.refresh(document)  # Refresh the session with the updated document
 
         return document  # Return the updated document
+    
+
+    # 
+    @router.delete("/delete-document/{id}", response_model=schemas.UserDocument)
+    async def delete_document(
+        id: int,  # Path parameter for document ID
+        userId: int = Depends(get_current_user),  # Get the current user from OAuth or another method
+        db: Session = Depends(get_db)  # Database session dependency
+    ):
+        document = db.query(models.Document).filter(
+            models.Document.userId == userId.id,
+            models.Document.id == id
+        ).first()
+
+       
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found for the user")
+
+        # Delete the document
+        db.delete(document)
+        db.commit()
+
+        # Return the deleted document's data as confirmation
+        return  JSONResponse ({"message": "documnet delete sucessfully"})
+
 
     
 
 class FieldTypeManager:
-    @staticmethod
-    @router.post("/add-fields")
-    def add_fields(request: schemas.FieldsType, db: Session = Depends(get_db)):
+    @router.post("/add-fields",response_model=schemas.FieldsType)
+    async def add_fields(request: schemas.FieldsType,userId: int = Depends(get_current_user), db: Session = Depends(get_db)):
         # Check if the email already exists in the database
         existing_user = db.query(FieldType).filter(FieldType.name == request.name).first()
         if existing_user:
@@ -245,6 +236,92 @@ class FieldTypeManager:
         db.commit()
         db.refresh(field)
         return field
+       
+    @router.get("/get-fields")
+    async def add_fields(userId: int = Depends(get_current_user),db: Session = Depends(get_db)):
+        data = db.query(FieldType).all()
+        return data
+        
+        
+
+
+
+class RecipientManager:
+
+    @router.post("/assign-recipients")
+    async def add_recipients( 
+        request: schemas.DocumentRecipientsRequest,
+        userId: int = Depends(get_current_user),
+        db: Session = Depends(get_db)):
+
+        try:
+            # Fetch the document to verify its existence
+            document = db.query(Document).filter(Document.id == request.document_id).first()
+            if not document:
+                return {"error": "Document not found"}
+
+            # Create Recipient instances from the incoming data
+            recipients = []
+            for recipient_data in request.recipients:
+                recipient = Recipient(
+                    document_id=request.document_id,
+                    name=recipient_data.name,
+                    email=recipient_data.email,
+                    role=recipient_data.role,
+                    # Set other fields as necessary (e.g., order if you plan to use it)
+                )
+                recipients.append(recipient)
+
+            # Add all recipients to the session and commit
+            db.add_all(recipients)
+            db.commit()
+
+            return {"message": "Recipients added successfully"}
+
+        except IntegrityError as e:
+            db.rollback()  # Rollback the transaction in case of an error
+            return {"error": "Failed to add recipients", "details": str(e)}
+        
+
+
+    @router.post("/assign-recipients")
+    async def add_recipients( 
+        request: schemas.DocumentRecipientsRequest,
+        userId: int = Depends(get_current_user),
+        db: Session = Depends(get_db)):
+
+        try:
+            # Fetch the document to verify its existence
+            document = db.query(Document).filter(Document.id == request.document_id).first()
+            if not document:
+                return {"error": "Document not found"}
+
+            # Create Recipient instances from the incoming data
+            recipients = []
+            for recipient_data in request.recipients:
+                recipient = Recipient(
+                    document_id=request.document_id,
+                    name=recipient_data.name,
+                    email=recipient_data.email,
+                    role=recipient_data.role,
+                    # Set other fields as necessary (e.g., order if you plan to use it)
+                )
+                recipients.append(recipient)
+
+            # Add all recipients to the session and commit
+            db.add_all(recipients)
+            db.commit()
+
+            return {"message": "Recipients added successfully"}
+
+        except IntegrityError as e:
+            db.rollback()  # Rollback the transaction in case of an error
+            return {"error": "Failed to add recipients", "details": str(e)}
+        
+
+    
+        
+
 
 
 

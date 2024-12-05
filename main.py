@@ -4,7 +4,7 @@ from apps.users.view import router as user_router
 app = FastAPI()
 
 # Register the router
-app.include_router(user_router, prefix="/users", tags=["Users"])
+app.include_router(user_router, prefix="/api", tags=["api"])
 
 
 from fastapi.middleware.cors import CORSMiddleware

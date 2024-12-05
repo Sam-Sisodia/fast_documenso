@@ -12,11 +12,13 @@ from datetime import datetime, timedelta
 from apps.users.models import User
 from sqlalchemy.orm import Session
 from core.database import get_db
+import smtplib
+from email.mime.text import MIMEText
 
 # Secret key for signing JWT tokens (replace with a secure key in production)
 SECRET_KEY = "8e0oiwuoijkjdhiu3yeihdh832yee23ue"
 ALGORITHM = "HS256"  # Algorithm to use for encoding/decoding tokens
-ACCESS_TOKEN_EXPIRE_MINUTES = 120
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)  # Hash the plain password
@@ -90,3 +92,35 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
         )
+
+
+
+
+def recipientsmail():
+    # Email details
+    sender_email = "sajal@example.com"
+    receiver_email = "sam@yopmail.com"
+    subject = "Test Email"
+    body = "This is a test email sent from FastAPI."
+
+    # Set up the MIMEText object
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = sender_email
+    msg['To'] = receiver_email
+
+    # SMTP server configuration (example with Gmail)
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+    smtp_user = "sajal89304@gmail.com"
+    smtp_password = ""
+
+    try:
+        # Connect to SMTP server
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()  # Secure connection
+            server.login(smtp_user, smtp_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+        return {"message": "Email sent successfully"}
+    except Exception as e:
+        return {"error": f"Failed to send email: {e}"}

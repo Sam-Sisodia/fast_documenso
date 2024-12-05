@@ -3,7 +3,8 @@ from typing import Optional
 from io import BytesIO
 from sqlalchemy import Column, Integer, String,LargeBinary,DateTime
 from apps.users.app_enum import DocumentStatus
-
+from apps.users.app_enum import RecipientRole
+from typing import List
 from datetime import datetime
 class UserCreate(BaseModel):
     username: str
@@ -19,9 +20,7 @@ class UserResponse(BaseModel):
 
     
     class Config:
-        orm_mode = True
-
-
+        from_attributes = True
 
 class UserLogin(BaseModel):
     email :EmailStr
@@ -29,10 +28,7 @@ class UserLogin(BaseModel):
 
 
 
-class FieldsType(BaseModel):
-    name : str
    
-
 
 class UserDocuments(BaseModel):
     id: int
@@ -42,11 +38,14 @@ class UserDocuments(BaseModel):
     updatedAt :datetime
     status: DocumentStatus = DocumentStatus.DRAFT
     class Config:
-        orm_mode = True  
+        from_attributes = True  
 
 
 
 
+class FieldsType(BaseModel):
+    id: Optional[int] = None  # Optional, default to None
+    name: Optional[str] = None
 
 
 class UserDocument(BaseModel):
@@ -57,8 +56,23 @@ class UserDocument(BaseModel):
     file_data: Optional[str] = None
     updatedAt: Optional[datetime] = None
     status: DocumentStatus = DocumentStatus.DRAFT
+    
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
+
+#Recipient
+
+
+# Request schema
+class Recipient(BaseModel):
+    name: str
+    email: EmailStr
+    role: RecipientRole
+    # order: int
+
+class DocumentRecipientsRequest(BaseModel):
+    document_id: int
+    recipients: List[Recipient]

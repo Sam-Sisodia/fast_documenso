@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends,status,UploadFile,File
 from sqlalchemy.orm import Session
 
 from apps.users import models,schemas,utils
-from apps.users.models import User,Document
+from apps.users.models import User,Document,FieldType
 # from .utils import hash_password
 from fastapi.responses import JSONResponse
 from core.database import get_db
@@ -97,60 +97,165 @@ def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
 
 
 
-@router.post("/upload_document/")
-async def upload_document(
-    file: UploadFile = File(...),  # The uploaded file
-    userId: int = Depends(get_current_user),  # Get the current user (replace this with your logic)
-    db: Session = Depends(get_db),  # Database session
-):
-    # Ensure the file is a PDF
+# @router.post("/upload_document/")
+# async def upload_document(
+#     file: UploadFile = File(...),  # The uploaded file
+#     userId: int = Depends(get_current_user),  # Get the current user (replace this with your logic)
+#     db: Session = Depends(get_db),  # Database session
+# ):
+#     # Ensure the file is a PDF
     
-    if file.content_type != 'application/pdf':
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+#     if file.content_type != 'application/pdf':
+#         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
-    # Read the file content as binary data
-    file_content = await file.read()
-    encoded_content = base64.b64encode(file_content).decode('utf-8')
+#     # Read the file content as binary data
+#     file_content = await file.read()
+#     encoded_content = base64.b64encode(file_content).decode('utf-8')
     
-    document = Document(
-        title=file.filename,  # You can use a custom naming convention
-        userId=userId.id,  # Associate the document with the user
-          # You can customize the title as needed
-        file_data=encoded_content , # Store the binary file content
-        createdAt=datetime.utcnow(),
-        updatedAt=datetime.utcnow(),
-    )
-    db.add(document)
-    db.commit()
-    db.refresh(document)
+#     document = Document(
+#         title=file.filename,  # You can use a custom naming convention
+#         userId=userId.id,  # Associate the document with the user
+#           # You can customize the title as needed
+#         file_data=encoded_content , # Store the binary file content
+#         createdAt=datetime.utcnow(),
+#         updatedAt=datetime.utcnow(),
+#     )
+#     db.add(document)
+#     db.commit()
+#     db.refresh(document)
 
-    return {"message": f"Document '{file.filename}' uploaded successfully!", "document_id": document.id}
+#     return {"message": f"Document '{file.filename}' uploaded successfully!", "document_id": document.id}
 
 
-@router.get("/user_document/", response_model=List[schemas.UserDocuments])
-async def get_user_document(
-    userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
-    db: Session = Depends(get_db), 
-    documentId: Optional[int] = None # Database session dependency
-):
-    # Fetch documents for the given userId
-    if  documentId:
+
+
+
+
+
+
+
+class DocumentManager:
+    @staticmethod
+    @router.post("/upload_document/")
+    async def upload_document(
+        file: UploadFile = File(...),  # The uploaded file
+        userId: int = Depends(get_current_user),  # Get the current user (replace this with your logic)
+        db: Session = Depends(get_db),  # Database session
+    ):
+        # Ensure the file is a PDF
+        
+        if file.content_type != 'application/pdf':
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
+        # Read the file content as binary data
+        file_content = await file.read()
+        encoded_content = base64.b64encode(file_content).decode('utf-8')
+        
+        document = Document(
+            title=file.filename,  # You can use a custom naming convention
+            userId=userId.id,  # Associate the document with the user
+            # You can customize the title as needed
+            file_data=encoded_content , # Store the binary file content
+            createdAt=datetime.utcnow(),
+            updatedAt=datetime.utcnow(),
+        )
+        db.add(document)
+        db.commit()
+        db.refresh(document)
+
+        return {"message": f"Document '{file.filename}' uploaded successfully!", "document_id": document.id}
+
+
+    
+    @staticmethod
+    @router.get("/user_document/", response_model=List[schemas.UserDocuments])
+    async def get_user_document(
+        userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
+        db: Session = Depends(get_db)):
+        #
+        documents = db.query(models.Document).filter(models.Document.userId == userId.id).all()
+        
+        if not documents:
+            raise HTTPException(status_code=404, detail="Documents not found for the user")
+
+        return documents
+
+    @staticmethod
+    @router.get("/user_document/{id}", response_model=schemas.UserDocument)
+    async def get_single_document(
+        id: int,  # Path parameter to get the document id from the URL
+        userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
+        db: Session = Depends(get_db)  # Database session dependency
+    ):
+        
         document = db.query(models.Document).filter(
             models.Document.userId == userId.id,
-            models.Document.id == documentId
+            models.Document.id == id  # Use the path parameter 'id'
         ).first()
 
         if not document:
             raise HTTPException(status_code=404, detail="Document not found for the user")
 
-        return [document]
-
-    documents = db.query(models.Document).filter(models.Document.userId == userId.id).all()
+        return document 
     
-    if not documents:
-        raise HTTPException(status_code=404, detail="Documents not found for the user")
 
-    return documents
+    @staticmethod
+    @router.patch("/update_document/{id}", response_model=schemas.UserDocument)
+    async def update_document(
+        id: int,  # Path parameter to get the document id from the URL
+        document_update: schemas.UserDocument,
+        userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
+        db: Session = Depends(get_db),  # Database session dependency
+       
+    ):
+        # Fetch the document to update
+        document = db.query(models.Document).filter(
+            models.Document.userId == userId.id,
+            models.Document.id == id
+        ).first()
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found for the user")
+
+        # Update fields with the new values
+        document.title = document_update.title
+        
+        db.commit()  # Commit the changes to the database
+        db.refresh(document)  # Refresh the session with the updated document
+
+        return document  # Return the updated document
+
+    
+
+class FieldTypeManager:
+    @staticmethod
+    @router.post("/add-fields")
+    def add_fields(request: schemas.FieldsType, db: Session = Depends(get_db)):
+        # Check if the email already exists in the database
+        existing_user = db.query(FieldType).filter(FieldType.name == request.name).first()
+        if existing_user:
+            return JSONResponse(
+                content={"msg": " Field already registered", "user": existing_user.name}, 
+                status_code=400
+            )
+        field = FieldType(
+            name=request.name,
+
+        )
+        db.add(field)
+        db.commit()
+        db.refresh(field)
+        return field
+
+
+
+
+    
+
+
+
+
+
+
 
 
 @router.get("/hii")

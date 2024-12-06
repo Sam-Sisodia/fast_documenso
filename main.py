@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from apps.users.view import router as user_router
+from dotenv import load_dotenv
+import os
+load_dotenv()
 
 app = FastAPI()
 
@@ -28,3 +31,4 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+

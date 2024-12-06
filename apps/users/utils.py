@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 import smtplib
 from email.mime.text import MIMEText
+import os
 
 # Secret key for signing JWT tokens (replace with a secure key in production)
 SECRET_KEY = "8e0oiwuoijkjdhiu3yeihdh832yee23ue"
@@ -96,31 +97,43 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
 
 
 
-def recipientsmail():
-    # Email details
-    sender_email = "sajal@example.com"
-    receiver_email = "sam@yopmail.com"
-    subject = "Test Email"
-    body = "This is a test email sent from FastAPI."
+def recipientsmail(document_links):
+    results = []  # List to store results for each email attempt
 
-    # Set up the MIMEText object
-    msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = sender_email
-    msg['To'] = receiver_email
+    for link in document_links:
+        # Email details
+        sender_email = "sajal@example.com"
+        receiver_email = link.recipient
+        subject = "Shared Documents"
+        url = f'http://127.0.0.1:8000/api/user-document/{link.document_id}/?token={link.token}'
+        body = f"This is a test email sent from {url}"
+       
+        # Set up the MIMEText object
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = receiver_email.email
 
-    # SMTP server configuration (example with Gmail)
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587
-    smtp_user = "sajal89304@gmail.com"
-    smtp_password = ""
+        # SMTP server configuration (example with Gmail)
+        smtp_server = "smtp.gmail.com"
+        smtp_port = 587
+        smtp_user = "sajal89304@gmail.com"
+        smtp_password = os.getenv("EMAIL_PASSWORD")
 
-    try:
-        # Connect to SMTP server
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()  # Secure connection
-            server.login(smtp_user, smtp_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-        return {"message": "Email sent successfully"}
-    except Exception as e:
-        return {"error": f"Failed to send email: {e}"}
+        try:
+            # Connect to SMTP server
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()  # Secure connection
+                server.login(smtp_user, smtp_password)
+                print("Sending email to:", receiver_email.email)
+                server.sendmail(sender_email, receiver_email.email, msg.as_string())
+            results.append({"recipient": receiver_email.email, "status": "Email sent successfully"})
+        except Exception as e:
+
+            results.append({"recipient": receiver_email.email, "status": f"Failed to send email: {e}"})
+   
+    return results  # Return results after sending all emails
+
+        
+
+

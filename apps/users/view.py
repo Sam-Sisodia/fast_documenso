@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends,status,UploadFile,File
 from sqlalchemy.orm import Session
 
 from apps.users import models,schemas,utils
-from apps.users.models import User,Document,FieldType,Recipient,DocumentSharedLink
+from apps.users.models import User,Document,FieldType,Recipient,DocumentSharedLink,CheckFields
 # from .utils import hash_password
 from fastapi.responses import JSONResponse
 from core.database import get_db
@@ -20,6 +20,8 @@ from typing import List
 import uuid 
 from sqlalchemy.orm import joinedload
 router = APIRouter()
+ 
+from apps.users.schemas import ActiveField
 
 def ss(db: Session):
     nn = db.query(FieldType).all()  # Query FieldType table
@@ -123,10 +125,9 @@ class DocumentManager:
         encoded_content = base64.b64encode(file_content).decode('utf-8')
         
         document = Document(
-            title=file.filename,  # You can use a custom naming convention
-            userId=userId.id,  # Associate the document with the user
-            # You can customize the title as needed
-            file_data=encoded_content , # Store the binary file content
+            title=file.filename, 
+            userId=userId.id,  
+            file_data=encoded_content ,
             createdAt=datetime.utcnow(),
             updatedAt=datetime.utcnow(),
         )
@@ -165,7 +166,26 @@ class DocumentManager:
         if not document:
             raise HTTPException(status_code=404, detail="Document not found for the user")
         document_data = schemas.UserDocument.from_orm(document)
-        document_data.doc_fields = db.query(FieldType).all()   
+        active_fields_query = db.query(models.CheckFields).filter(models.CheckFields.document_id==id,
+                                                            models.CheckFields.inserted==True)
+        
+       
+        active_fields = [
+        ActiveField(
+            id=field.id,
+            name=field.name,
+            status=True  # Assuming the status is always True for active fields
+        )
+        for ac in active_fields_query
+        if (field := db.query(models.FieldType).filter(models.FieldType.id == ac.field_id).first())
+    ]
+
+       
+            
+        
+        document_data.doc_fields = db.query(FieldType).all()  
+        document_data.active_fileds = active_fields
+
         return document_data 
     
     
@@ -282,20 +302,18 @@ class RecipientManager:
         db: Session = Depends(get_db),
     ):
         try:
-            # Fetch the document to verify its existence
+    # Fetch the document to verify its existence
             document = db.query(Document).filter(Document.id == request.document_id).first()
             if not document:
                 return {"error": "Document not found"}
 
-            recipients = []  # List to hold recipient objects to be added
+            recipients = []
             for recipient_data in request.recipients:
-                # Check if a recipient with the same email and document_id already exists
                 existing_recipient = db.query(Recipient).filter(
                     Recipient.email == recipient_data.email,
                     Recipient.document_id == request.document_id
                 ).first()
 
-                # If the recipient doesn't already exist, create a new one
                 if not existing_recipient:
                     recipient = Recipient(
                         document_id=request.document_id,
@@ -305,41 +323,50 @@ class RecipientManager:
                     )
                     recipients.append(recipient)
 
-            # Add all recipients to the session if any were created
             if recipients:
                 db.add_all(recipients)
-                db.flush()  # Flush to generate IDs for recipients
+                db.flush()
 
-                # Create DocumentSharedLink instances
                 document_links = []
                 for recipient in recipients:
                     shared_link = DocumentSharedLink(
-                        token=str(uuid.uuid4()),  # Generate a unique token
+                        token=str(uuid.uuid4()),
                         document_id=request.document_id,
-                        recipient_id=recipient.id,  # Use the generated recipient ID
+                        recipient_id=recipient.id,
                     )
-                    
                     document_links.append(shared_link)
 
-               
-                # Add document links to the session
                 db.add_all(document_links)
-                db.commit()  # Commit both recipients and document links
+                db.flush()
+
+            if request.fields:
+                fields_to_add = []
+                for field_id in request.fields:
+                    document_field = CheckFields(
+                        document_id=request.document_id,
+                        field_id=field_id,
+                        inserted=True,
+                    )
+                    fields_to_add.append(document_field)
+
+                db.add_all(fields_to_add)
+                db.flush()
+
+            db.commit()
+
+            if recipients:
                 recipientsmail(document_links)
-                
 
-                
-
-                return {"message": "Recipients added successfully"}
-            else:
-                return {"message": "No new recipients were added, they may already exist."}
+            return {"message": "Recipients and fields added successfully"}
 
         except IntegrityError as e:
-            db.rollback()  # Rollback the transaction in case of an error
-            return {"error": "Failed to add recipients", "details": str(e)}
+            db.rollback()
+            return {"error": "Failed to add recipients or fields", "details": str(e)}
+
         except Exception as e:
-            db.rollback()  # Rollback for any other errors
+            db.rollback()
             return {"error": "An unexpected error occurred", "details": str(e)}
+
 
 
     

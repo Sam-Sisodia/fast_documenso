@@ -63,6 +63,7 @@ class FieldsType(BaseModel):
 
 
 
+
 class RecipientSchema(BaseModel):
     id: int
     name: str
@@ -78,6 +79,11 @@ class RecipientSchema(BaseModel):
 
 
 
+class ActiveField(BaseModel):
+    id: int
+    name: str
+    status: bool
+
 class UserDocument(BaseModel):
     id: Optional[int] = None  # Optional, default to None
     title: Optional[str] = None
@@ -87,13 +93,14 @@ class UserDocument(BaseModel):
     updatedAt: Optional[datetime] = None
     status: DocumentStatus = DocumentStatus.DRAFT
     recipients: List[RecipientSchema] = []
-    new: Optional[str] = None
     doc_fields: List[FieldsType] = []
+    active_fileds: List[ActiveField]= []
+    
 
 
     class Config:
         from_attributes = True
-        check_fields=False
+
 
     # @property
     # def custom_doc_fields(self) -> str:
@@ -128,4 +135,5 @@ class Recipient(BaseModel):
 
 class DocumentRecipientsRequest(BaseModel):
     document_id: int
+    fields: List[int]
     recipients: List[Recipient]

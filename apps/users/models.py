@@ -42,7 +42,7 @@ class Document(Base):
     user = relationship('User', back_populates='documents')
     recipients = relationship('Recipient', back_populates='document', cascade="all, delete-orphan")
     documentsharedlinks = relationship("DocumentSharedLink",back_populates="document")
-    checkfields = relationship("CheckFields", back_populates="check_field_document")
+    documnet_fields = relationship("CheckFields", back_populates="check_fields_document")
 
 
 
@@ -54,7 +54,7 @@ class Document(Base):
 class Recipient(Base):
     __tablename__ = 'recipient'
     id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey('documents.id'), nullable=True)
+    document_id = Column(Integer, ForeignKey('documents.id',ondelete="CASCADE"), nullable=True)
     name = Column(String, nullable=False)  # Name of the signatory
     email = Column(String, nullable=False)  # Email of the signatory
     role = Column(SQLAlchemyEnum(RecipientRole), nullable=False)  # Role of the recipient
@@ -64,11 +64,11 @@ class Recipient(Base):
     # order = Column(Integer, nullable=False)  # Signing order
     document = relationship("Document", back_populates="recipients")
     shared_link_recipient = relationship("DocumentSharedLink", back_populates='recipient')
-    # document_fields = relationship("FieldType",back_populates="fields_document")
+   
 
 
 class DocumentSharedLink(Base):
-    __tablename__ = 'signing_links'
+    __tablename__ = 'documentsharedlink'
     
     id = Column(Integer, primary_key=True, index=True)  
     token = Column(String, unique=True, nullable=False)
@@ -77,7 +77,7 @@ class DocumentSharedLink(Base):
     created_at = Column(DateTime, default=datetime.utcnow)  
     signed_at = Column(DateTime, nullable=True)  #)
 
-    document_id = Column(Integer, ForeignKey('documents.id'), nullable=False)  
+    document_id = Column(Integer, ForeignKey('documents.id',ondelete="CASCADE"), nullable=False)  
     recipient_id = Column(Integer, ForeignKey('recipient.id'), nullable=False) 
     document = relationship("Document", back_populates="documentsharedlinks")
     recipient = relationship("Recipient",back_populates="shared_link_recipient")
@@ -86,7 +86,7 @@ class DocumentSharedLink(Base):
 
 
 class FieldType(Base):
-    __tablename__ = 'FieldType'
+    __tablename__ = 'fieldtype'
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String,unique=True, index=True)
@@ -95,6 +95,9 @@ class FieldType(Base):
     positionY =Column(String, nullable=True) 
     width = Column(String, nullable=True) 
     height = Column(String, nullable=True) 
+    # inserted = Column(Boolean,  default=False) 
+    
+    typefileds =relationship("CheckFields", back_populates="checktypefields")
     
  
 
@@ -102,10 +105,12 @@ class FieldType(Base):
 
 
 class CheckFields(Base):
-    __tablename__ = 'documnet_fields'
+    __tablename__ = 'documnet_field'
     id = Column(Integer, primary_key=True, index=True)
-    inserted = Column(Boolean, nullable=False, default=False)
-    document_id = Column(Integer, ForeignKey('documents.id'), nullable=False) 
-   
-    check_field_document = relationship("Document", back_populates="checkfields")
+    inserted = Column(Boolean, default=False)
+    document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=False) 
+    field_id  = Column(Integer, ForeignKey('fieldtype.id', ondelete="CASCADE"),nullable=False)
+
+    check_fields_document = relationship("Document", back_populates="documnet_fields")
+    checktypefields =relationship("FieldType", back_populates="typefileds")
 

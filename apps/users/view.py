@@ -109,7 +109,7 @@ def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
 
 
 class DocumentManager:
-    @router.post("/upload_document/")
+    @router.post("/upload-document/")
     async def upload_document(
         file: UploadFile = File(...),  # The uploaded file
         userId: int = Depends(get_current_user),  # Get the current user (replace this with your logic)

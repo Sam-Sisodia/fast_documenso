@@ -180,8 +180,6 @@ class DocumentManager:
         if (field := db.query(models.FieldType).filter(models.FieldType.id == ac.field_id).first())
     ]
 
-       
-            
         
         document_data.doc_fields = db.query(FieldType).all()  
         document_data.active_fileds = active_fields

@@ -46,22 +46,17 @@ class UserDocuments(BaseModel):
 
 
 
-
-
 class FieldsType(BaseModel):
     id: Optional[int] = None
     name: str
-    signature: Optional[str] = None
-    positionX: Optional[str] = None
-    positionY: Optional[str] = None
-    width: Optional[str] = None
-    height: Optional[str] = None
+    # signature: Optional[str] = None
+    # positionX: Optional[str] = None
+    # positionY: Optional[str] = None
+    # width: Optional[str] = None
+    # height: Optional[str] = None
 
     class Config:
         from_attributes = True  
-
-
-
 
 
 class RecipientSchema(BaseModel):
@@ -80,9 +75,14 @@ class RecipientSchema(BaseModel):
 
 
 class ActiveField(BaseModel):
-    id: int
-    name: str
-    status: bool
+    id: Optional[int] = None
+    signature: Optional[str] = None
+    positionX: Optional[str] = None
+    positionY: Optional[str] = None
+    width: Optional[str] = None
+    height: Optional[str] = None
+    inserted: Optional[bool] = False
+    field_id: int
 
 class UserDocument(BaseModel):
     id: Optional[int] = None  # Optional, default to None
@@ -94,14 +94,10 @@ class UserDocument(BaseModel):
     status: DocumentStatus = DocumentStatus.DRAFT
     recipients: List[RecipientSchema] = []
     doc_fields: List[FieldsType] = []
-    active_fileds: List[ActiveField]= []
-    
-
+    active_fields: List[ActiveField]= []
 
     class Config:
         from_attributes = True
-
-
     # @property
     # def custom_doc_fields(self) -> str:
     #     # from apps.users.view import ss
@@ -117,15 +113,6 @@ class UserDocument(BaseModel):
 
 
 
-    
-
-
-
-
-
-#Recipient
-
-
 # Request schema
 class Recipient(BaseModel):
     name: str
@@ -135,5 +122,46 @@ class Recipient(BaseModel):
 
 class DocumentRecipientsRequest(BaseModel):
     document_id: int
-    fields: List[int]
+    # fields: List[int]
     recipients: List[Recipient]
+
+
+
+#Add fields schema
+class DocumentFields(BaseModel):
+    id: Optional[int] = None
+    signature: Optional[str] = None
+    positionX: Optional[str] = None
+    positionY: Optional[str] = None
+    width: Optional[str] = None
+    height: Optional[str] = None
+    inserted: Optional[bool] = False
+    field_id: int
+
+    class Config:
+        from_attributes = True
+
+class AddDocumentFields(BaseModel):
+    document_id: int
+    fields: List[DocumentFields]
+
+    class Config:
+        from_attributes = True
+
+
+
+#Send document 
+
+# class DocumentRecipient(BaseModel):
+#     id: int
+
+
+class SendDocuments(BaseModel):
+    document_id: int
+    # recipient: List[DocumentRecipient]
+    recipient: List[int]
+    subject : Optional[str] = None
+    message : Optional[str] = None
+
+    class Config:
+        from_attributes = True

@@ -16,6 +16,7 @@ import smtplib
 from email.mime.text import MIMEText
 import os
 
+
 # Secret key for signing JWT tokens (replace with a secure key in production)
 SECRET_KEY = "8e0oiwuoijkjdhiu3yeihdh832yee23ue"
 ALGORITHM = "HS256"  # Algorithm to use for encoding/decoding tokens
@@ -65,21 +66,50 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 
+# def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+#     try:
+#         # Decode the token and extract the email
+#         payload = decode_access_token(token)
+#         email = payload.get("sub")  # Assuming "sub" is the email in the payload
+        
+#         if email is None:
+#             raise HTTPException(
+#                 status_code=status.HTTP_401_UNAUTHORIZED,
+#                 detail="Invalid token"
+#             )
+        
+#         # Query the user based on the email
+#         user = db.query(User).filter(User.email == email).first()
+        
+#         if not user:
+#             raise HTTPException(
+#                 status_code=status.HTTP_401_UNAUTHORIZED,
+#                 detail="User not found"
+#             )
+        
+#         return user
+    
+#     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Invalid or expired token"
+#         )
+
 def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
     try:
-        # Decode the token and extract the email
-        payload = decode_access_token(token)
-        email = payload.get("sub")  # Assuming "sub" is the email in the payload
+        # Decode the token and extract the payload
+        payload = decode_access_token(token)  
+        email = payload.get("sub")  
         
         if email is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
+                detail="Invalid token: email (sub) not found"
             )
-        
+
         # Query the user based on the email
         user = db.query(User).filter(User.email == email).first()
-        
+
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -87,26 +117,32 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
             )
         
         return user
+
     
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+    except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
+            detail="Token has expired"
         )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"An error occurred while processing the token: {str(e)}")
 
 
 
 
-def recipientsmail(document_links):
+def recipientsmail(document_links,subject,message):
     results = []  # List to store results for each email attempt
 
     for link in document_links:
         # Email details
         sender_email = "sajal@example.com"
         receiver_email = link.recipient
-        subject = "Shared Documents"
+        subject =    subject  if subject else  "Shared Documents" 
         url = f'http://127.0.0.1:8000/api/user-document/{link.document_id}/?token={link.token}'
-        body = f"This is a test email sent from {url}"
+        user_message = message if message else ""
+        body = f"{user_message} Click on link to open the Document {url}"
        
         # Set up the MIMEText object
         msg = MIMEText(body)

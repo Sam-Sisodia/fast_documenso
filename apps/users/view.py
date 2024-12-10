@@ -20,8 +20,8 @@ from typing import List
 import uuid 
 from sqlalchemy.orm import joinedload
 router = APIRouter()
- 
 from apps.users.schemas import ActiveField
+from apps.users.app_enum import DocumentStatus
 
 def ss(db: Session):
     nn = db.query(FieldType).all()  # Query FieldType table
@@ -31,7 +31,6 @@ def ss(db: Session):
 
 @router.post("/register",response_model=schemas.UserResponse)
 def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Check if the email already exists in the database
     existing_user = db.query(User).filter(User.email == request.email).first()
     if existing_user:
         return JSONResponse(
@@ -39,7 +38,6 @@ def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
             status_code=400
         )
   
-    # Hash the user's password before storing
     hashed_password = utils.hash_password(request.password)
  
     new_user = User(
@@ -83,7 +81,7 @@ def refresh_access_token(refresh_token: str):
 @router.post("/login", response_model=dict)
 def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
     """Authenticate user and return a JWT token."""
-    # Fetch the user by email
+   
     user = db.query(User).filter(User.email == request.email).first()
     if not user:
         raise HTTPException(
@@ -91,7 +89,6 @@ def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
             detail="Invalid email or password",
         )
     
-    # Verify the password
     if not verify_password(request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -111,16 +108,15 @@ def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
 class DocumentManager:
     @router.post("/upload-document/")
     async def upload_document(
-        file: UploadFile = File(...),  # The uploaded file
-        userId: int = Depends(get_current_user),  # Get the current user (replace this with your logic)
-        db: Session = Depends(get_db),  # Database session
+        file: UploadFile = File(...),  
+        userId: int = Depends(get_current_user),  
+        db: Session = Depends(get_db),  
     ):
-        # Ensure the file is a PDF
+
         
         if file.content_type != 'application/pdf':
             raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
-        # Read the file content as binary data
         file_content = await file.read()
         encoded_content = base64.b64encode(file_content).decode('utf-8')
         
@@ -154,36 +150,21 @@ class DocumentManager:
     #get single document 
     @router.get("/user-document/{id}", response_model=schemas.UserDocument)
     async def get_single_document(
-        id: int,  # Path parameter to get the document id from the URL
-        userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
-        db: Session = Depends(get_db)  # Database session dependency
+        id: int,  
+        userId: int = Depends(get_current_user),  
+        db: Session = Depends(get_db)  
     ):
         document = db.query(models.Document).filter(
             models.Document.userId == userId.id,
-            models.Document.id == id  # Use the path parameter 'id'
+            models.Document.id == id  
         ).first()
 
         if not document:
             raise HTTPException(status_code=404, detail="Document not found for the user")
         document_data = schemas.UserDocument.from_orm(document)
-        active_fields_query = db.query(models.CheckFields).filter(models.CheckFields.document_id==id,
-                                                            models.CheckFields.inserted==True)
-        
-       
-        active_fields = [
-        ActiveField(
-            id=field.id,
-            name=field.name,
-            status=True  # Assuming the status is always True for active fields
-        )
-        for ac in active_fields_query
-        if (field := db.query(models.FieldType).filter(models.FieldType.id == ac.field_id).first())
-    ]
-
-        
+    
         document_data.doc_fields = db.query(FieldType).all()  
-        document_data.active_fileds = active_fields
-
+        document_data.active_fields = db.query(CheckFields).filter(CheckFields.document_id == id, CheckFields.inserted == True).all()
         return document_data 
     
     
@@ -191,10 +172,10 @@ class DocumentManager:
     
     @router.patch("/update-document/{id}", response_model=schemas.UserDocument)
     async def update_document(
-        id: int,  # Path parameter to get the document id from the URL
+        id: int,
         document_update: schemas.UserDocument,
-        userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
-        db: Session = Depends(get_db),  # Database session dependency
+        userId: int = Depends(get_current_user), 
+        db: Session = Depends(get_db), 
        
     ):
         # Fetch the document to update
@@ -205,13 +186,12 @@ class DocumentManager:
         if not document:
             raise HTTPException(status_code=404, detail="Document not found for the user")
 
-        # Update fields with the new values
         document.title = document_update.title
         
-        db.commit()  # Commit the changes to the database
-        db.refresh(document)  # Refresh the session with the updated document
+        db.commit() 
+        db.refresh(document) 
 
-        return document  # Return the updated document
+        return document  
     
 
     # 
@@ -233,8 +213,6 @@ class DocumentManager:
         # Delete the document
         db.delete(document)
         db.commit()
-
-        # Return the deleted document's data as confirmation
         return  JSONResponse ({"message": "documnet delete sucessfully"})
 
 
@@ -243,28 +221,19 @@ class DocumentManager:
 class FieldTypeManager:
     @router.post("/add-fields", response_model=schemas.FieldsType)
     async def add_fields(request: schemas.FieldsType, userId: int = Depends(get_current_user), db: Session = Depends(get_db)):
-        # Check if the field name already exists in the database
         existing_field = db.query(FieldType).filter(FieldType.name == request.name).first()
         if existing_field:
             raise HTTPException(
                 status_code=400,
                 detail=f"Field with name '{request.name}' already registered"
             )
-
-        # Create the new FieldType entry
         field = FieldType(
             name=request.name,
-            signature=request.signature,
-            positionX=request.positionX,
-            positionY=request.positionY,
-            width=request.width,
-            height=request.height
+           
         )
         db.add(field)
         db.commit()
         db.refresh(field)
-
-        # Return the newly created FieldType object
         return field
        
     @router.get("/get-fields")
@@ -277,22 +246,6 @@ class FieldTypeManager:
 
 
 class RecipientManager:
-    # @router.get("/user-recipients/", response_model=List[schemas.UserDocuments])
-    # async def get_recipients(
-    #     userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
-    #     db: Session = Depends(get_db)):
-    #     #
-    #     documents = db.query(models.Recipient).filter(models.Document.userId == userId.id).all()
-        
-    #     if not documents:
-    #         raise HTTPException(status_code=404, detail="Documents not found for the user")
-
-    #     # return documents
-    #     return [schemas.UserDocuments.from_orm(doc) for doc in documents]
-
-
-
-
     @router.post("/assign-recipients")
     async def add_recipients(
         request: schemas.DocumentRecipientsRequest,
@@ -300,7 +253,6 @@ class RecipientManager:
         db: Session = Depends(get_db),
     ):
         try:
-    # Fetch the document to verify its existence
             document = db.query(Document).filter(Document.id == request.document_id).first()
             if not document:
                 return {"error": "Document not found"}
@@ -323,39 +275,8 @@ class RecipientManager:
 
             if recipients:
                 db.add_all(recipients)
-                db.flush()
-
-                document_links = []
-                for recipient in recipients:
-                    shared_link = DocumentSharedLink(
-                        token=str(uuid.uuid4()),
-                        document_id=request.document_id,
-                        recipient_id=recipient.id,
-                    )
-                    document_links.append(shared_link)
-
-                db.add_all(document_links)
-                db.flush()
-
-            if request.fields:
-                fields_to_add = []
-                for field_id in request.fields:
-                    document_field = CheckFields(
-                        document_id=request.document_id,
-                        field_id=field_id,
-                        inserted=True,
-                    )
-                    fields_to_add.append(document_field)
-
-                db.add_all(fields_to_add)
-                db.flush()
-
-            db.commit()
-
-            if recipients:
-                recipientsmail(document_links)
-
-            return {"message": "Recipients and fields added successfully"}
+                db.commit()
+                return {"message": "Recipients and fields added successfully"}
 
         except IntegrityError as e:
             db.rollback()
@@ -364,6 +285,157 @@ class RecipientManager:
         except Exception as e:
             db.rollback()
             return {"error": "An unexpected error occurred", "details": str(e)}
+        
+    @router.delete("/delete-recipients/{id}", response_model=schemas.UserDocument)
+    async def delete_recipients(
+        id: int,  # Path parameter for document ID
+        userId: int = Depends(get_current_user),  # Get the current user from OAuth or another method
+        db: Session = Depends(get_db)  # 
+    ):
+        recipient = db.query(models.Recipient).filter(
+            models.Recipient.id == id
+        ).first()
+
+        if not recipient:
+            raise HTTPException(status_code=404, detail="Document not found for the user")
+
+        # Delete the document
+        db.delete(recipient)
+        db.commit()
+        return  JSONResponse ({"message": "recipient delete sucessfully"})
+    
+
+
+
+
+    @router.post("/add-document-fields")
+    async def add_document_fields(request: schemas.AddDocumentFields,
+            userId: int = Depends(get_current_user),
+            db: Session = Depends(get_db),):
+            
+        try:
+            # Verify the document exists
+            document = db.query(Document).filter(Document.id == request.document_id).first()
+            if not document:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+            fields = []
+            for field_data in request.fields:
+                # Check if the field already exists for the document
+                existing_field = db.query(CheckFields).filter(
+                    CheckFields.document_id == request.document_id,
+                    CheckFields.field_id == field_data.field_id
+                ).first()
+
+                if not existing_field:
+                    # Create a new CheckFields instance
+                    field = CheckFields(
+                        document_id=request.document_id,
+                        signature=field_data.signature,
+                        positionX=field_data.positionX,
+                        positionY=field_data.positionY,
+                        width=field_data.width,
+                        height=field_data.height,
+                        inserted=field_data.inserted,
+                        field_id=field_data.field_id
+                    )
+                    fields.append(field)
+
+            # Add new fields to the database if any
+            if fields:
+                db.add_all(fields)
+                db.commit()
+                return {"message": "Document fields added successfully"}
+            else:
+                return {"message": "No new fields were added"}
+
+        except IntegrityError as e:
+            db.rollback()
+            return {"error": "Database integrity error", "details": str(e)}
+    
+
+    @router.post("/send-documents")
+    async def send_documents(request: schemas.SendDocuments,
+            userId: int = Depends(get_current_user),
+            db: Session = Depends(get_db),):
+            
+        try:
+            # Verify the document exists
+            document = db.query(Document).filter(Document.id == request.document_id).first()
+            if not document:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+            document_links = []
+            for data in request.recipient:
+                # Check if the field already exists for the document
+                existing_recipient = db.query(Recipient).filter(
+                    Recipient.id == data,
+
+                ).first()
+
+                if  existing_recipient:
+                    # Create a new CheckFields instance
+                    shared_link = DocumentSharedLink(
+                       token=str(uuid.uuid4()),
+                        document_id=request.document_id,
+                        recipient_id=existing_recipient.id,
+                    )
+                    document_links.append(shared_link)
+            # Add new fields to the database if any
+            if document_links :
+                db.add_all(document_links )
+                db.commit()
+                recipientsmail(document_links,request.subject,request.message)
+
+                document.is_send = True
+                document.status = DocumentStatus.PENDING
+                db.commit()
+                
+                # return {"message": "Document Send Sucessfully  successfully"}
+                return {
+                "message": "Document sent successfully",
+                "status": status.HTTP_200_OK }
+            else:
+                return {"message": "No new fields were added"}
+
+        except IntegrityError as e:
+            db.rollback()
+            return {"error": "Database integrity error", "details": str(e)}
+
+
+                
+
+            #     document_links = []
+            #     for recipient in recipients:
+            #         shared_link = DocumentSharedLink(
+            #             token=str(uuid.uuid4()),
+            #             document_id=request.document_id,
+            #             recipient_id=recipient.id,
+            #         )
+            #         document_links.append(shared_link)
+
+            #     db.add_all(document_links)
+            #     db.flush()
+
+            # if request.fields:
+            #     fields_to_add = []
+            #     for field_id in request.fields:
+            #         document_field = CheckFields(
+            #             document_id=request.document_id,
+            #             field_id=field_id,
+            #             inserted=True,
+            #         )
+            #         fields_to_add.append(document_field)
+
+            #     db.add_all(fields_to_add)
+            #     db.flush()
+
+            # db.commit()
+
+            # if recipients:
+            #     recipientsmail(document_links)
+
+            
 
 
 

@@ -38,6 +38,7 @@ class Document(Base):
     createdAt = Column(DateTime, default=datetime.utcnow)
     updatedAt = Column(DateTime, default=datetime.utcnow)
     status = Column(SQLAlchemyEnum(DocumentStatus), default=DocumentStatus.DRAFT)  # Enum field
+    is_send = Column(Boolean, default=False)
     
     user = relationship('User', back_populates='documents')
     recipients = relationship('Recipient', back_populates='document', cascade="all, delete-orphan")
@@ -49,19 +50,17 @@ class Document(Base):
 
  
 
-
-
 class Recipient(Base):
     __tablename__ = 'recipient'
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(Integer, ForeignKey('documents.id',ondelete="CASCADE"), nullable=True)
-    name = Column(String, nullable=False)  # Name of the signatory
-    email = Column(String, nullable=False)  # Email of the signatory
+    name = Column(String, nullable=False) 
+    email = Column(String, nullable=False)  
     role = Column(SQLAlchemyEnum(RecipientRole), nullable=False)  # Role of the recipient
     status = Column(SQLAlchemyEnum(DocumentStatus), default=DocumentStatus.DRAFT)  # Signing status
     signed_at = Column(DateTime, nullable=True) 
-    created_at = Column(DateTime,default=datetime.utcnow)  # Timestamp of signing
-    # order = Column(Integer, nullable=False)  # Signing order
+    created_at = Column(DateTime,default=datetime.utcnow)  
+
     document = relationship("Document", back_populates="recipients")
     shared_link_recipient = relationship("DocumentSharedLink", back_populates='recipient')
    
@@ -90,23 +89,21 @@ class FieldType(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String,unique=True, index=True)
-    signature = Column(String, nullable=True) 
-    positionX = Column(String, nullable=True) 
-    positionY =Column(String, nullable=True) 
-    width = Column(String, nullable=True) 
-    height = Column(String, nullable=True) 
-    # inserted = Column(Boolean,  default=False) 
-    
+   
     typefileds =relationship("CheckFields", back_populates="checktypefields")
     
  
 
 
 
-
 class CheckFields(Base):
     __tablename__ = 'documnet_field'
     id = Column(Integer, primary_key=True, index=True)
+    signature = Column(String, nullable=True) 
+    positionX = Column(String, nullable=True) 
+    positionY =Column(String, nullable=True) 
+    width = Column(String, nullable=True) 
+    height = Column(String, nullable=True) 
     inserted = Column(Boolean, default=False)
     document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=False) 
     field_id  = Column(Integer, ForeignKey('fieldtype.id', ondelete="CASCADE"),nullable=False)

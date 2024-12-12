@@ -134,7 +134,6 @@ class DocumentManager:
         return {"message": f"Document '{file.filename}' uploaded successfully!", "document_id": document.id}
 
 
-    
     #get all document 
     @router.get("/user-documents/", response_model=List[schemas.UserDocuments])
     async def get_user_document(
@@ -165,9 +164,16 @@ class DocumentManager:
     
         document_data.doc_fields = db.query(FieldType).all()  
         document_data.active_fields = db.query(CheckFields).filter(CheckFields.document_id == id, CheckFields.inserted == True).all()
-        return document_data 
-    
-    
+        recipients = db.query(models.Recipient).join(
+            models.document_recipient_association,  # Join with the association table
+            models.Recipient.id == models.document_recipient_association.c.recipient_id  # Specify the condition for joining
+        ).filter(
+            models.document_recipient_association.c.document_id == id  # Filter based on the document_id
+        ).all()
+        document_data.recipients = [schemas.RecipientSchema.from_orm(recipient) for recipient in recipients]
+
+        return document_data
+
 
     
     @router.patch("/update-document/{id}", response_model=schemas.UserDocument)
@@ -206,17 +212,23 @@ class DocumentManager:
             models.Document.id == id
         ).first()
 
-       
         if not document:
             raise HTTPException(status_code=404, detail="Document not found for the user")
-
-        # Delete the document
-        db.delete(document)
-        db.commit()
-        return  JSONResponse ({"message": "documnet delete sucessfully"})
-
-
     
+        try:
+            db.query(models.document_recipient_association).filter(
+                models.document_recipient_association.c.document_id == id
+            ).delete()
+            db.commit()  # Commit the transaction to the database
+            return {"message": "Document and associated data deleted successfully"}
+
+        except Exception as e:
+            db.rollback()  # Rollback if any error occurs
+            raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
+
+        
+
+
 
 class FieldTypeManager:
     @router.post("/add-fields", response_model=schemas.FieldsType)
@@ -246,6 +258,16 @@ class FieldTypeManager:
 
 
 class RecipientManager:
+
+    @router.get("/get-recipients/", response_model=List[schemas.GetRecipients])
+    async def get_recipients(
+        userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
+        db: Session = Depends(get_db)):
+        recipient = db.query(models.Recipient).all()
+        # return documents
+        return recipient
+
+
     @router.post("/assign-recipients")
     async def add_recipients(
         request: schemas.DocumentRecipientsRequest,
@@ -253,57 +275,72 @@ class RecipientManager:
         db: Session = Depends(get_db),
     ):
         try:
+            # Fetch the document
             document = db.query(Document).filter(Document.id == request.document_id).first()
             if not document:
                 return {"error": "Document not found"}
 
             recipients = []
             for recipient_data in request.recipients:
-                existing_recipient = db.query(Recipient).filter(
-                    Recipient.email == recipient_data.email,
-                    Recipient.document_id == request.document_id
+                # Check if the recipient already exists by email
+                existing_recipient = db.query(models.Recipient).filter(
+                    models.Recipient.email == recipient_data.email
                 ).first()
 
-                if not existing_recipient:
-                    recipient = Recipient(
-                        document_id=request.document_id,
+                if existing_recipient:
+                    # Check if the recipient is already associated with this document (in the M2M table)
+                    existing_association = db.query(models.document_recipient_association).filter(
+                        models.document_recipient_association.c.document_id == request.document_id,
+                        models.document_recipient_association.c.recipient_id == existing_recipient.id
+                    ).first()
+
+                    if not existing_association:
+                        # If the recipient is not already associated with this document, add the recipient to the document
+                        document.recipients.append(existing_recipient)
+                        recipients.append(existing_recipient)
+                else:
+                    # If the recipient doesn't exist, create a new recipient and associate it with the document
+                    recipient = models.Recipient(
                         name=recipient_data.name,
                         email=recipient_data.email,
                         role=recipient_data.role,
                     )
+                    document.recipients.append(recipient)
                     recipients.append(recipient)
 
             if recipients:
-                db.add_all(recipients)
-                db.commit()
-                return {"message": "Recipients and fields added successfully"}
-
-        except IntegrityError as e:
-            db.rollback()
-            return {"error": "Failed to add recipients or fields", "details": str(e)}
+                db.add_all(recipients)  # Add new recipients to the session
+                db.commit()  # Commit the changes to the database
+                return {"message": "Recipients added successfully"}
 
         except Exception as e:
             db.rollback()
-            return {"error": "An unexpected error occurred", "details": str(e)}
+            return {"error": "An error occurred while adding recipients", "details": str(e)}
+
         
-    @router.delete("/delete-recipients/{id}", response_model=schemas.UserDocument)
-    async def delete_recipients(
-        id: int,  # Path parameter for document ID
-        userId: int = Depends(get_current_user),  # Get the current user from OAuth or another method
-        db: Session = Depends(get_db)  # 
+    @router.delete("/remove-recipient", status_code=204)
+    async def remove_recipient_from_document(
+        document_id: int,
+        recipient_id: int,
+        db: Session = Depends(get_db)
     ):
-        recipient = db.query(models.Recipient).filter(
-            models.Recipient.id == id
-        ).first()
-
+        # Fetch the document from the database
+        document = db.query(models.Document).filter(models.Document.id == document_id).first()
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        recipient = db.query(models.Recipient).filter(models.Recipient.id == recipient_id).first()
         if not recipient:
-            raise HTTPException(status_code=404, detail="Document not found for the user")
+            raise HTTPException(status_code=404, detail="Recipient not found")
 
-        # Delete the document
-        db.delete(recipient)
-        db.commit()
-        return  JSONResponse ({"message": "recipient delete sucessfully"})
-    
+     
+        if recipient in document.recipients:
+            document.recipients.remove(recipient)
+            db.commit()
+            return {"message": "Recipient removed from the document",
+                    "status":status.HTTP_200_OK }
+
+        raise HTTPException(status_code=404, detail="Recipient not found in the document")
+
 
 
 
@@ -403,38 +440,7 @@ class RecipientManager:
             return {"error": "Database integrity error", "details": str(e)}
 
 
-                
-
-            #     document_links = []
-            #     for recipient in recipients:
-            #         shared_link = DocumentSharedLink(
-            #             token=str(uuid.uuid4()),
-            #             document_id=request.document_id,
-            #             recipient_id=recipient.id,
-            #         )
-            #         document_links.append(shared_link)
-
-            #     db.add_all(document_links)
-            #     db.flush()
-
-            # if request.fields:
-            #     fields_to_add = []
-            #     for field_id in request.fields:
-            #         document_field = CheckFields(
-            #             document_id=request.document_id,
-            #             field_id=field_id,
-            #             inserted=True,
-            #         )
-            #         fields_to_add.append(document_field)
-
-            #     db.add_all(fields_to_add)
-            #     db.flush()
-
-            # db.commit()
-
-            # if recipients:
-            #     recipientsmail(document_links)
-
+          
             
 
 

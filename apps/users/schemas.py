@@ -46,6 +46,19 @@ class UserDocuments(BaseModel):
 
 
 
+class GetRecipients(BaseModel):
+    id: Optional[int] = None
+    name :Optional[str] = None
+    email : Optional[str] = None
+    role : Optional[str] = None
+     
+
+    class Config:
+        from_attributes = True  
+    
+
+
+
 class FieldsType(BaseModel):
     id: Optional[int] = None
     name: str
@@ -59,19 +72,29 @@ class FieldsType(BaseModel):
         from_attributes = True  
 
 
+# class RecipientSchema(BaseModel):
+#     id: int
+#     name: str
+#     email: str
+#     role: RecipientRole
+#     status: DocumentStatus
+#     signed_at: Optional[datetime] = None
+#     created_at: datetime
+
+#     class Config:
+#         from_attributes = True
+
 class RecipientSchema(BaseModel):
     id: int
     name: str
     email: str
-    role: RecipientRole
-    status: DocumentStatus
+    role: str  # Assuming a role is a string, or you can use an Enum
+    status: str  # Assuming status is a string, or you can use an Enum
     signed_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
-
-
 
 
 class ActiveField(BaseModel):
@@ -84,8 +107,13 @@ class ActiveField(BaseModel):
     inserted: Optional[bool] = False
     field_id: int
 
+    class Config:
+        from_attributes = True
+
+
+
 class UserDocument(BaseModel):
-    id: Optional[int] = None  # Optional, default to None
+    id: Optional[int] = None
     title: Optional[str] = None
     userId: Optional[int] = None
     createdAt: Optional[datetime] = None
@@ -94,22 +122,10 @@ class UserDocument(BaseModel):
     status: DocumentStatus = DocumentStatus.DRAFT
     recipients: List[RecipientSchema] = []
     doc_fields: List[FieldsType] = []
-    active_fields: List[ActiveField]= []
+    active_fields: List[ActiveField] = []
 
     class Config:
         from_attributes = True
-    # @property
-    # def custom_doc_fields(self) -> str:
-    #     # from apps.users.view import ss
-    #     print("++++++++++++++++++++++++++++++++",ss(d))
-       
-       
-    #     return 
-
-    # @field_serializer("doc_fields")
-    # def serialize_custom_doc_fields(self, value) -> str:
-    #     return self.custom_doc_fields
-
 
 
 

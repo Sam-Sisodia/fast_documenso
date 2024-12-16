@@ -166,10 +166,19 @@ class AddDocumentFields(BaseModel):
 
 
 
+#Remove Documnet Fields
+
+class RemoveDocumentFields(BaseModel):
+    document_id: int
+    field_ids: List[int]  # List of field IDs to delete
+
+    class Config:
+        from_attributes = True
+
+
+
 #Send document 
 
-# class DocumentRecipient(BaseModel):
-#     id: int
 
 
 class SendDocuments(BaseModel):

@@ -88,9 +88,9 @@ class FieldType(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String,unique=True, index=True)
-   
     typefileds =relationship("CheckFields", back_populates="checktypefields")
     
+
 
 class CheckFields(Base):
     __tablename__ = 'documnet_field'
@@ -100,7 +100,7 @@ class CheckFields(Base):
     positionY =Column(String, nullable=True) 
     width = Column(String, nullable=True) 
     height = Column(String, nullable=True) 
-    inserted = Column(Boolean, default=False)
+    # inserted = Column(Boolean, default=False)
     document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=False) 
     field_id  = Column(Integer, ForeignKey('fieldtype.id', ondelete="CASCADE"),nullable=False)
 

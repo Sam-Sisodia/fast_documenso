@@ -163,16 +163,30 @@ class DocumentManager:
         document_data = schemas.UserDocument.from_orm(document)
     
         document_data.doc_fields = db.query(FieldType).all()  
-        document_data.active_fields = db.query(CheckFields).filter(CheckFields.document_id == id, CheckFields.inserted == True).all()
+        # document_data.active_fields = db.query(CheckFields).filter(CheckFields.document_id == id, CheckFields.inserted == True).all()
         recipients = db.query(models.Recipient).join(
             models.document_recipient_association,  # Join with the association table
             models.Recipient.id == models.document_recipient_association.c.recipient_id  # Specify the condition for joining
         ).filter(
             models.document_recipient_association.c.document_id == id  # Filter based on the document_id
         ).all()
+        
         document_data.recipients = [schemas.RecipientSchema.from_orm(recipient) for recipient in recipients]
 
+        active_fields = db.query(CheckFields).filter(
+        CheckFields.document_id == id,
+        ).all()
+
+        print("++++++++++")
+
+        # Add active fields to the response
+        document_data.active_fields = [schemas.DocumentFields.from_orm(field) for field in active_fields]
+
         return document_data
+
+        
+
+
 
 
     
@@ -258,7 +272,6 @@ class FieldTypeManager:
 
 
 class RecipientManager:
-
     @router.get("/get-recipients/", response_model=List[schemas.GetRecipients])
     async def get_recipients(
         userId: int = Depends(get_current_user),  # Get the current user from OAuth token or other method
@@ -266,7 +279,7 @@ class RecipientManager:
         recipient = db.query(models.Recipient).all()
         # return documents
         return recipient
-
+    
 
     @router.post("/assign-recipients")
     async def add_recipients(
@@ -322,7 +335,8 @@ class RecipientManager:
     async def remove_recipient_from_document(
         document_id: int,
         recipient_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        userId: int = Depends(get_current_user),
     ):
         # Fetch the document from the database
         document = db.query(models.Document).filter(models.Document.id == document_id).first()
@@ -340,7 +354,6 @@ class RecipientManager:
                     "status":status.HTTP_200_OK }
 
         raise HTTPException(status_code=404, detail="Recipient not found in the document")
-
 
 
 
@@ -373,7 +386,7 @@ class RecipientManager:
                         positionY=field_data.positionY,
                         width=field_data.width,
                         height=field_data.height,
-                        inserted=field_data.inserted,
+                        # inserted=field_data.inserted,
                         field_id=field_data.field_id
                     )
                     fields.append(field)
@@ -391,10 +404,42 @@ class RecipientManager:
             return {"error": "Database integrity error", "details": str(e)}
     
 
+    @router.post("/remove-document-field")
+    async def remove_document_field(  request: schemas.RemoveDocumentFields,
+        userId: int = Depends(get_current_user),
+        db: Session = Depends(get_db)):
+
+        document = db.query(models.Document).filter(models.Document.id==request.document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found or not owned by the user")
+
+        # Delete all fields associated with the provided field IDs
+        fields_to_delete = db.query(models.CheckFields).filter(
+            models.CheckFields.document_id == request.document_id,
+            models.CheckFields.id.in_(request.field_ids)  # Delete specific field IDs
+        )
+        if not fields_to_delete.count():
+            raise HTTPException(status_code=404, detail="No fields found to delete")
+
+        # Perform the deletion
+        fields_to_delete.delete(synchronize_session=False)
+        db.commit()
+
+        return {"detail": "Fields successfully deleted"}
+
+       
+                
+
+
+
+
+        
+
+
     @router.post("/send-documents")
     async def send_documents(request: schemas.SendDocuments,
             userId: int = Depends(get_current_user),
-            db: Session = Depends(get_db),):
+            db: Session = Depends(get_db)):
             
         try:
             # Verify the document exists

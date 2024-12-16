@@ -177,15 +177,10 @@ class DocumentManager:
         CheckFields.document_id == id,
         ).all()
 
-        print("++++++++++")
-
         # Add active fields to the response
         document_data.active_fields = [schemas.DocumentFields.from_orm(field) for field in active_fields]
 
         return document_data
-
-        
-
 
 
 
@@ -215,30 +210,33 @@ class DocumentManager:
     
 
     # 
-    @router.delete("/delete-document/{id}", response_model=schemas.UserDocument)
+    @router.delete("/delete-document/{id}")
     async def delete_document(
         id: int,  # Path parameter for document ID
         userId: int = Depends(get_current_user),  # Get the current user from OAuth or another method
         db: Session = Depends(get_db)  # Database session dependency
     ):
+        # Query the document
         document = db.query(models.Document).filter(
             models.Document.userId == userId.id,
             models.Document.id == id
         ).first()
 
+        # If the document does not exist, raise an error
         if not document:
             raise HTTPException(status_code=404, detail="Document not found for the user")
-    
+
         try:
-            db.query(models.document_recipient_association).filter(
-                models.document_recipient_association.c.document_id == id
-            ).delete()
-            db.commit()  # Commit the transaction to the database
+            # Delete the document through the ORM
+            db.delete(document)
+            db.commit()  # Commit the transaction to trigger cascading deletes
+
             return {"message": "Document and associated data deleted successfully"}
 
         except Exception as e:
-            db.rollback()  # Rollback if any error occurs
+            db.rollback()  # Rollback in case of errors
             raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
+
 
         
 

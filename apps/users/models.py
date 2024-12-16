@@ -31,16 +31,28 @@ class Document(Base):
     updatedAt = Column(DateTime, default=datetime.utcnow)
     status = Column(SQLAlchemyEnum(DocumentStatus), default=DocumentStatus.DRAFT)
     is_send = Column(Boolean, default=False)
-    
     user = relationship('User', back_populates='documents')
+    documentsharedlinks = relationship(
+        "DocumentSharedLink",
+        back_populates="document",
+        cascade="all, delete-orphan"
+    )
+    documnet_fields = relationship(
+        "CheckFields",
+        back_populates="check_fields_document",
+        cascade="all, delete-orphan"
+    )
+
+    # Many-to-many relationship with Recipients (handled by ondelete="CASCADE" at DB level)
     recipients = relationship(
         'Recipient',
-        secondary="document_recipient",  # Use the association table directly
+        secondary="document_recipient",
         back_populates='documents'
     )
-    documentsharedlinks = relationship("DocumentSharedLink", back_populates="document")
-    documnet_fields = relationship("CheckFields", back_populates="check_fields_document")
+    signing_document = relationship("DocumentSigningProcess",back_populates="document",cascade="all, delete-orphan")
 
+
+  
 class Recipient(Base):
     __tablename__ = 'recipients'
 
@@ -49,7 +61,7 @@ class Recipient(Base):
     email = Column(String, nullable=False)
     role = Column(SQLAlchemyEnum(RecipientRole), nullable=False)  # Role of the recipient
     status = Column(SQLAlchemyEnum(DocumentStatus), default=DocumentStatus.DRAFT)  # Signing status
-    signed_at = Column(DateTime, nullable=True)
+    # signed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     documents = relationship(
@@ -58,6 +70,7 @@ class Recipient(Base):
         back_populates='recipients'
     )
     shared_link_recipient = relationship("DocumentSharedLink", back_populates='recipient')
+    signing_recipient = relationship('Recipient', back_populates='recipient',cascade="all, delete-orphan")
 
 class DocumentSharedLink(Base):
     __tablename__ = 'documentsharedlinks'
@@ -81,15 +94,12 @@ document_recipient_association = Table(
 
 
 
-
-
 class FieldType(Base):
     __tablename__ = 'fieldtype'
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String,unique=True, index=True)
     typefileds =relationship("CheckFields", back_populates="checktypefields")
-    
 
 
 class CheckFields(Base):
@@ -107,3 +117,22 @@ class CheckFields(Base):
     check_fields_document = relationship("Document", back_populates="documnet_fields")
     checktypefields =relationship("FieldType", back_populates="typefileds")
 
+
+
+
+class DocumentSigningProcess(Base):
+    __tablename__ = 'documentsigningprocess'
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=True)
+    recipient_id = Column(Integer, ForeignKey('recipients.id', ondelete="CASCADE"), nullable=True)
+    signed_at = Column(DateTime, nullable=True)  # When the recipient signed
+    sign_status = Column(Boolean, default=False)
+    order = Column(Integer, nullable=False, default=1)  # Signing order
+    is_current = Column(Boolean, default=False)  # Indicates if this is the active signing step
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    document = relationship('Document', back_populates='signing_document')
+    recipient = relationship('Recipient', back_populates='signing_recipient')

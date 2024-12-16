@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends,status,UploadFile,File
 from sqlalchemy.orm import Session
 
 from apps.users import models,schemas,utils
-from apps.users.models import User,Document,FieldType,Recipient,DocumentSharedLink,CheckFields
+from apps.users.models import User,Document,FieldType,Recipient,DocumentSharedLink,CheckFields,DocumentSigningProcess,DocumentStatus,document_recipient_association
 # from .utils import hash_password
 from fastapi.responses import JSONResponse
 from core.database import get_db
@@ -153,32 +153,108 @@ class DocumentManager:
         userId: int = Depends(get_current_user),  
         db: Session = Depends(get_db)  
     ):
-        document = db.query(models.Document).filter(
+        
+        # Query the document with recipients and their fields
+        document = db.query(models.Document).options(
+            joinedload(models.Document.recipients).joinedload(models.Recipient.recipient_fields).joinedload(models.CheckFields.checktypefields)
+        ).filter(
             models.Document.userId == userId.id,
-            models.Document.id == id  
+            models.Document.id == id
         ).first()
 
         if not document:
             raise HTTPException(status_code=404, detail="Document not found for the user")
-        document_data = schemas.UserDocument.from_orm(document)
-    
-        document_data.doc_fields = db.query(FieldType).all()  
-        # document_data.active_fields = db.query(CheckFields).filter(CheckFields.document_id == id, CheckFields.inserted == True).all()
-        recipients = db.query(models.Recipient).join(
-            models.document_recipient_association,  # Join with the association table
-            models.Recipient.id == models.document_recipient_association.c.recipient_id  # Specify the condition for joining
-        ).filter(
-            models.document_recipient_association.c.document_id == id  # Filter based on the document_id
-        ).all()
-        
-        document_data.recipients = [schemas.RecipientSchema.from_orm(recipient) for recipient in recipients]
 
-        active_fields = db.query(CheckFields).filter(
-        CheckFields.document_id == id,
-        ).all()
+        # Extract and attach fields properly
+        for recipient in document.recipients:
+            for field in recipient.recipient_fields:
+                field.typefileds = [
+                    schemas.Fileinfo(
+                        id=field.checktypefields.id,
+                        name=field.checktypefields.name
+                    )
+                ]
+
+        # Convert to Pydantic model
+        document_data = schemas.UserDocument.from_orm(document)
+        return document_data
+
+
+        
+        # # Query the document with recipients and fields
+        # document = db.query(models.Document).options(
+        #     joinedload(models.Document.recipients).joinedload(models.Recipient.recipient_fields)
+        # ).filter(
+        #     models.Document.userId == userId.id,
+        #     models.Document.id == id
+        # ).first()
+
+        # if not document:
+        #     raise HTTPException(status_code=404, detail="Document not found for the user")
+
+        # # Extract recipient IDs from the document
+        # recipient_ids = [recipient.id for recipient in document.recipients]
+
+        # # Filter CheckFields based on recipient IDs
+        # filtered_fields = db.query(models.CheckFields).filter(
+        #     models.CheckFields.recipient_id.in_(recipient_ids),  # recipient_ids should be a list
+        #     models.CheckFields.document_id == id  # id is a single value, so we use == instead of in_
+        # ).all()
+
+
+        # # Attach filtered fields to corresponding recipients
+        # for recipient in document.recipients:
+        #     recipient.recipient_fields = [
+        #         field for field in filtered_fields if field.recipient_id == recipient.id
+        #     ]
+
+        # # Transform to Pydantic model
+        # document_data = schemas.UserDocument.from_orm(document)
+        # return document_data
+
+
+        # # document = db.query(models.Document).filter(
+        # #     models.Document.userId == userId.id,
+        # #     models.Document.id == id  
+        # # ).first()
+
+        # document = db.query(models.Document).options(
+        #     joinedload(models.Document.recipients).joinedload(models.Recipient.recipient_fields)
+        # ).filter(
+        #     models.Document.userId == userId.id,
+        #     models.Document.id == id
+        # ).first()
+
+        
+
+        # if not document:
+        #     raise HTTPException(status_code=404, detail="Document not found for the user")
+        # document_data = schemas.UserDocument.from_orm(document)
+
+        # for recipient in document_data.recipients:
+        #     # Add ActiveField to the recipient (assuming 'recipients' is a list of RecipientSchema)
+        #     # Replace the values in the list [13, 4, 5] with actual `ActiveField` data
+        #     active_fields = [
+        #         schemas.ActiveField(field_id=field_id) for field_id in [13, 4, 5]
+        #     ]
+        #     recipient.documnet_fields.extend(active_fields)
+    
+    
+        # recipients = db.query(models.Recipient).join(
+        #     models.document_recipient_association,  # Join with the association table
+        #     models.Recipient.id == models.document_recipient_association.c.recipient_id  # Specify the condition for joining
+        # ).filter(
+        #     models.document_recipient_association.c.document_id == id  # Filter based on the document_id
+        # ).all()
+        
+        # document_data.recipients = [schemas.RecipientSchema.from_orm(recipient) for recipient in recipients]
+
+        # active_fields = db.query(CheckFields).filter(
+        # CheckFields.document_id == id,
+        # ).all()
 
         # Add active fields to the response
-        document_data.active_fields = [schemas.DocumentFields.from_orm(field) for field in active_fields]
+        # document_data.active_fields = [schemas.DocumentFields.from_orm(field) for field in active_fields]
 
         return document_data
 
@@ -281,7 +357,7 @@ class RecipientManager:
 
     @router.post("/assign-recipients")
     async def add_recipients(
-        request: schemas.DocumentRecipientsRequest,
+        request: schemas.AssignDocumnetRecipient,
         userId: int = Depends(get_current_user),
         db: Session = Depends(get_db),
     ):
@@ -354,53 +430,71 @@ class RecipientManager:
         raise HTTPException(status_code=404, detail="Recipient not found in the document")
 
 
-
-
     @router.post("/add-document-fields")
-    async def add_document_fields(request: schemas.AddDocumentFields,
-            userId: int = Depends(get_current_user),
-            db: Session = Depends(get_db),):
-            
+    async def add_document_fields(
+        request: schemas.AddDocumentFields,
+        userId: int = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
         try:
             # Verify the document exists
             document = db.query(Document).filter(Document.id == request.document_id).first()
+           
             if not document:
                 raise HTTPException(status_code=404, detail="Document not found")
+            exists_query = db.query(document_recipient_association).filter(
+                        document_recipient_association.c.document_id == request.document_id
+                    ).first()
+            
+            if not exists_query:
+                raise HTTPException(status_code=404, detail="No document assign yet")
+
+
 
             fields = []
+
             for field_data in request.fields:
-                # Check if the field already exists for the document
+                recipient = db.query(Recipient).filter(Recipient.id == field_data.recipient).first()
+            
+                if not recipient:
+                    raise HTTPException(status_code=404, detail="Recipient not found")
+                
+                # Check if the field already exists for this document and recipient
                 existing_field = db.query(CheckFields).filter(
                     CheckFields.document_id == request.document_id,
-                    CheckFields.field_id == field_data.field_id
+                    CheckFields.recipient_id == field_data.recipient,
+                    CheckFields.field_id == field_data.field_id,
+                    CheckFields.positionX == field_data.positionX,
+                    CheckFields.positionY == field_data.positionY,
                 ).first()
 
                 if not existing_field:
                     # Create a new CheckFields instance
                     field = CheckFields(
                         document_id=request.document_id,
+                        recipient_id=field_data.recipient,
                         signature=field_data.signature,
                         positionX=field_data.positionX,
                         positionY=field_data.positionY,
                         width=field_data.width,
                         height=field_data.height,
-                        # inserted=field_data.inserted,
-                        field_id=field_data.field_id
+                        page_no=field_data.page_no,
+                        field_id=field_data.field_id,
                     )
                     fields.append(field)
 
-            # Add new fields to the database if any
+            # Add new fields to the database
             if fields:
                 db.add_all(fields)
                 db.commit()
                 return {"message": "Document fields added successfully"}
             else:
-                return {"message": "No new fields were added"}
+                return {"message": "No new fields were added. Fields already exist."}
 
         except IntegrityError as e:
             db.rollback()
             return {"error": "Database integrity error", "details": str(e)}
-    
+
 
     @router.post("/remove-document-field")
     async def remove_document_field(  request: schemas.RemoveDocumentFields,
@@ -428,10 +522,6 @@ class RecipientManager:
        
                 
 
-
-
-
-        
 
 
     @router.post("/send-documents")
@@ -485,6 +575,64 @@ class RecipientManager:
 
           
             
+    # @router.post("/document-sign/{doc_id}/{recipient_token}")
+    # async def sign_document(
+    #     doc_id: int,
+    #     recipient_token: str,
+    #     signature: str,  # The recipient's signature
+    #     db: Session = Depends(get_db),
+    #     userId: int = Depends(get_current_user)
+    # ):
+    #     # Step 1: Find the document using doc_id
+    #     document = db.query(Document).filter(Document.id == doc_id).first()
+    #     if not document:
+    #         raise HTTPException(status_code=404, detail="Document not found")
+
+    #     # Step 2: Find the recipient by the token
+    #     recipient = db.query(Recipient).filter(Recipient.token == recipient_token).first()
+    #     if not recipient:
+    #         raise HTTPException(status_code=404, detail="Recipient not found")
+
+    #     # Step 3: Find the signing process for this document and recipient
+    #     signing_process = db.query(DocumentSigningProcess).filter(
+    #         DocumentSigningProcess.document_id == doc_id,
+    #         DocumentSigningProcess.recipient_id == recipient.id
+    #     ).first()
+
+    #     if not signing_process:
+    #         raise HTTPException(status_code=404, detail="Signing process not found")
+
+    #     # Step 4: Check if it's the recipient's turn to sign (based on `is_current`)
+    #     if not signing_process.is_current:
+    #         raise HTTPException(status_code=403, detail="It's not your turn to sign")
+
+    #     # Step 5: Save the signature and update signing status
+    #     signing_process.signed_at = datetime.utcnow()  # Record the time of signing
+    #     signing_process.sign_status = True  # Mark as signed
+    #     signing_process.is_current = False  # Mark as completed
+
+    #     # Step 6: Move to the next recipient in the signing order
+    #     next_signing_process = db.query(DocumentSigningProcess).filter(
+    #         DocumentSigningProcess.document_id == doc_id,
+    #         DocumentSigningProcess.order > signing_process.order
+    #     ).order_by(DocumentSigningProcess.order).first()
+
+    #     if next_signing_process:
+    #         # Set the next recipient as the current one to sign
+    #         next_signing_process.is_current = True
+    #         db.commit()
+
+    #     # Step 7: Optionally check if the document is fully signed
+    #     all_signed = db.query(DocumentSigningProcess).filter(
+    #         DocumentSigningProcess.document_id == doc_id,
+    #         DocumentSigningProcess.sign_status == True
+    #     ).count() == len(document.signing_document)
+
+    #     if all_signed:
+    #         document.status = "SIGNED"  # Mark document as fully signed
+    #         db.commit()
+
+    #     return {"message": "Document signed successfully", "status": "OK"}
 
 
 

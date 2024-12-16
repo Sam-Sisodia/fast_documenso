@@ -60,8 +60,6 @@ class Recipient(Base):
     name = Column(String, nullable=False)
     email = Column(String, nullable=False)
     role = Column(SQLAlchemyEnum(RecipientRole), nullable=False)  # Role of the recipient
-    status = Column(SQLAlchemyEnum(DocumentStatus), default=DocumentStatus.DRAFT)  # Signing status
-    # signed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     documents = relationship(
@@ -70,19 +68,19 @@ class Recipient(Base):
         back_populates='recipients'
     )
     shared_link_recipient = relationship("DocumentSharedLink", back_populates='recipient')
-    signing_recipient = relationship('Recipient', back_populates='recipient',cascade="all, delete-orphan")
+    signing_recipient = relationship('DocumentSigningProcess', back_populates='recipient',cascade="all, delete-orphan")
+    recipient_fields = relationship("CheckFields",back_populates="recipients",cascade="all, delete-orphan")
 
 class DocumentSharedLink(Base):
     __tablename__ = 'documentsharedlinks'
-
     id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=False)
+    document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=True)
     recipient_id = Column(Integer, ForeignKey('recipients.id', ondelete="CASCADE"), nullable=True)  # ForeignKey to recipients
-
+    token = Column(String, nullable=True)
     document = relationship("Document", back_populates="documentsharedlinks")
     recipient = relationship("Recipient", back_populates="shared_link_recipient")
     created_at = Column(DateTime, default=datetime.utcnow)
-    link = Column(String, nullable=False)
+
 
 # Define the association table AFTER both classes are defined
 document_recipient_association = Table(
@@ -91,7 +89,6 @@ document_recipient_association = Table(
     Column('document_id', Integer, ForeignKey('documents.id', ondelete="CASCADE"), primary_key=True),
     Column('recipient_id', Integer, ForeignKey('recipients.id', ondelete="CASCADE"), primary_key=True)
 )
-
 
 
 class FieldType(Base):
@@ -110,12 +107,14 @@ class CheckFields(Base):
     positionY =Column(String, nullable=True) 
     width = Column(String, nullable=True) 
     height = Column(String, nullable=True) 
-    # inserted = Column(Boolean, default=False)
-    document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=False) 
-    field_id  = Column(Integer, ForeignKey('fieldtype.id', ondelete="CASCADE"),nullable=False)
+    page_no = Column(String, nullable=True) 
+    document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=True) 
+    field_id  = Column(Integer, ForeignKey('fieldtype.id', ondelete="CASCADE"),nullable=True)
+    recipient_id= Column(Integer, ForeignKey('recipients.id', ondelete="CASCADE"),nullable=True)
 
     check_fields_document = relationship("Document", back_populates="documnet_fields")
     checktypefields =relationship("FieldType", back_populates="typefileds")
+    recipients =relationship("Recipient", back_populates="recipient_fields")
 
 
 

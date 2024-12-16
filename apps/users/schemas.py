@@ -6,10 +6,7 @@ from apps.users.app_enum import DocumentStatus
 from apps.users.app_enum import RecipientRole
 from typing import List
 from datetime import datetime
-from apps.users.models import FieldType
-from sqlalchemy.orm import Session
-from fastapi import APIRouter, HTTPException, Depends,status,UploadFile,File
-from core.database import get_db
+
 class UserCreate(BaseModel):
     username: str
     email: EmailStr
@@ -62,39 +59,23 @@ class GetRecipients(BaseModel):
 class FieldsType(BaseModel):
     id: Optional[int] = None
     name: str
-    # signature: Optional[str] = None
-    # positionX: Optional[str] = None
-    # positionY: Optional[str] = None
-    # width: Optional[str] = None
-    # height: Optional[str] = None
+   
 
     class Config:
         from_attributes = True  
 
 
-# class RecipientSchema(BaseModel):
-#     id: int
-#     name: str
-#     email: str
-#     role: RecipientRole
-#     status: DocumentStatus
-#     signed_at: Optional[datetime] = None
-#     created_at: datetime
 
-#     class Config:
-#         from_attributes = True
 
-class RecipientSchema(BaseModel):
-    id: int
+class Fileinfo(BaseModel):
+    id: Optional[int] = None
     name: str
-    email: str
-    role: str  # Assuming a role is a string, or you can use an Enum
-    status: str  # Assuming status is a string, or you can use an Enum
-    signed_at: Optional[datetime] = None
-    created_at: datetime
+   
 
     class Config:
-        from_attributes = True
+        from_attributes = True  
+
+
 
 
 class ActiveField(BaseModel):
@@ -104,11 +85,33 @@ class ActiveField(BaseModel):
     positionY: Optional[str] = None
     width: Optional[str] = None
     height: Optional[str] = None
-    inserted: Optional[bool] = False
     field_id: int
+    typefileds :List[Fileinfo] =None
+    
+
+
+
+    
 
     class Config:
         from_attributes = True
+
+
+class RecipientSchema(BaseModel):
+    id: int
+    name: str
+    email: str
+    role: str  
+    signed_at: Optional[datetime] = None
+    created_at: datetime
+    recipient_fields : List[ActiveField] =[]
+    
+    
+
+    class Config:
+        from_attributes = True
+
+
 
 
 
@@ -119,10 +122,9 @@ class UserDocument(BaseModel):
     createdAt: Optional[datetime] = None
     file_data: Optional[str] = None
     updatedAt: Optional[datetime] = None
-    status: DocumentStatus = DocumentStatus.DRAFT
     recipients: List[RecipientSchema] = []
-    doc_fields: List[FieldsType] = []
-    active_fields: List[ActiveField] = []
+  
+
 
     class Config:
         from_attributes = True
@@ -136,9 +138,8 @@ class Recipient(BaseModel):
     role: RecipientRole
     # order: int
 
-class DocumentRecipientsRequest(BaseModel):
+class AssignDocumnetRecipient(BaseModel):
     document_id: int
-    # fields: List[int]
     recipients: List[Recipient]
 
 
@@ -151,7 +152,8 @@ class DocumentFields(BaseModel):
     positionY: Optional[str] = None
     width: Optional[str] = None
     height: Optional[str] = None
-    inserted: Optional[bool] = False
+    page_no : Optional[str]=None
+    recipient :int
     field_id: int
 
     class Config:
@@ -165,9 +167,7 @@ class AddDocumentFields(BaseModel):
         from_attributes = True
 
 
-
 #Remove Documnet Fields
-
 class RemoveDocumentFields(BaseModel):
     document_id: int
     field_ids: List[int]  # List of field IDs to delete
@@ -183,7 +183,7 @@ class RemoveDocumentFields(BaseModel):
 
 class SendDocuments(BaseModel):
     document_id: int
-    # recipient: List[DocumentRecipient]
+
     recipient: List[int]
     subject : Optional[str] = None
     message : Optional[str] = None

@@ -9,9 +9,7 @@ app = FastAPI()
 # Register the router
 app.include_router(user_router, prefix="/api", tags=["api"])
 
-
 from fastapi.middleware.cors import CORSMiddleware
-
 
 
 origins = [

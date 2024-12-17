@@ -154,109 +154,71 @@ class DocumentManager:
         db: Session = Depends(get_db)  
     ):
         
-        # Query the document with recipients and their fields
         document = db.query(models.Document).options(
-            joinedload(models.Document.recipients).joinedload(models.Recipient.recipient_fields).joinedload(models.CheckFields.checktypefields)
+            joinedload(models.Document.recipients)
         ).filter(
             models.Document.userId == userId.id,
-            models.Document.id == id
+            models.Document.id == id  
         ).first()
 
         if not document:
             raise HTTPException(status_code=404, detail="Document not found for the user")
-
-        # Extract and attach fields properly
+        
+        # Prepare recipients with associated fields
+        recipients_data = []
         for recipient in document.recipients:
-            for field in recipient.recipient_fields:
-                field.typefileds = [
-                    schemas.Fileinfo(
-                        id=field.checktypefields.id,
-                        name=field.checktypefields.name
-                    )
-                ]
+            # Fetch active fields associated with the recipient
+            active_fields_data = db.query(models.CheckFields).filter(
+                models.CheckFields.document_id == id,
+                models.CheckFields.recipient_id == recipient.id
+            ).all()
 
-        # Convert to Pydantic model
+            # Convert active fields to Pydantic models
+            recipient_fields = [
+                schemas.ActiveField.from_orm(field) for field in active_fields_data
+            ]
+
+            # Create the recipient schema with active fields
+            recipient_data = schemas.RecipientSchema.from_orm(recipient)
+            recipient_data.recipient_fields = recipient_fields
+
+            recipients_data.append(recipient_data)
+
+        # Serialize the document with updated recipients
         document_data = schemas.UserDocument.from_orm(document)
+        document_data.recipients = recipients_data
+
         return document_data
 
 
-        
-        # # Query the document with recipients and fields
-        # document = db.query(models.Document).options(
-        #     joinedload(models.Document.recipients).joinedload(models.Recipient.recipient_fields)
-        # ).filter(
+        # document = db.query(models.Document).filter(
         #     models.Document.userId == userId.id,
-        #     models.Document.id == id
+        #     models.Document.id == id  
         # ).first()
 
         # if not document:
         #     raise HTTPException(status_code=404, detail="Document not found for the user")
-
-        # # Extract recipient IDs from the document
-        # recipient_ids = [recipient.id for recipient in document.recipients]
-
-        # # Filter CheckFields based on recipient IDs
-        # filtered_fields = db.query(models.CheckFields).filter(
-        #     models.CheckFields.recipient_id.in_(recipient_ids),  # recipient_ids should be a list
-        #     models.CheckFields.document_id == id  # id is a single value, so we use == instead of in_
-        # ).all()
+        
 
 
-        # # Attach filtered fields to corresponding recipients
         # for recipient in document.recipients:
-        #     recipient.recipient_fields = [
-        #         field for field in filtered_fields if field.recipient_id == recipient.id
-        #     ]
+        #     print("Recipient ID:", recipient.id)
+        #     active_fields_data  = db.query(CheckFields).filter( models.CheckFields.document_id==id,
+        #                                                        models.CheckFields.recipient_id==recipient.id).all()
+            
+        #     print("+++++++++++++++++++++++++++++++++",active_fields_data)
+        #     for field in active_fields_data:
+        #         print(f"Recipient ID: {recipient.id}, CheckField ID: {field.id}")
+    
 
-        # # Transform to Pydantic model
+        
         # document_data = schemas.UserDocument.from_orm(document)
         # return document_data
+       
+      
 
-
-        # # document = db.query(models.Document).filter(
-        # #     models.Document.userId == userId.id,
-        # #     models.Document.id == id  
-        # # ).first()
-
-        # document = db.query(models.Document).options(
-        #     joinedload(models.Document.recipients).joinedload(models.Recipient.recipient_fields)
-        # ).filter(
-        #     models.Document.userId == userId.id,
-        #     models.Document.id == id
-        # ).first()
 
         
-
-        # if not document:
-        #     raise HTTPException(status_code=404, detail="Document not found for the user")
-        # document_data = schemas.UserDocument.from_orm(document)
-
-        # for recipient in document_data.recipients:
-        #     # Add ActiveField to the recipient (assuming 'recipients' is a list of RecipientSchema)
-        #     # Replace the values in the list [13, 4, 5] with actual `ActiveField` data
-        #     active_fields = [
-        #         schemas.ActiveField(field_id=field_id) for field_id in [13, 4, 5]
-        #     ]
-        #     recipient.documnet_fields.extend(active_fields)
-    
-    
-        # recipients = db.query(models.Recipient).join(
-        #     models.document_recipient_association,  # Join with the association table
-        #     models.Recipient.id == models.document_recipient_association.c.recipient_id  # Specify the condition for joining
-        # ).filter(
-        #     models.document_recipient_association.c.document_id == id  # Filter based on the document_id
-        # ).all()
-        
-        # document_data.recipients = [schemas.RecipientSchema.from_orm(recipient) for recipient in recipients]
-
-        # active_fields = db.query(CheckFields).filter(
-        # CheckFields.document_id == id,
-        # ).all()
-
-        # Add active fields to the response
-        # document_data.active_fields = [schemas.DocumentFields.from_orm(field) for field in active_fields]
-
-        return document_data
 
 
 

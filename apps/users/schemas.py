@@ -65,12 +65,13 @@ class FieldsType(BaseModel):
         from_attributes = True  
 
 
+##########################################################################
 
+# # typefileds :List[Fileinfo] =None
 
 class Fileinfo(BaseModel):
     id: Optional[int] = None
     name: str
-   
 
     class Config:
         from_attributes = True  
@@ -86,11 +87,7 @@ class ActiveField(BaseModel):
     width: Optional[str] = None
     height: Optional[str] = None
     field_id: int
-    typefileds :List[Fileinfo] =None
-    
-
-
-
+   
     
 
     class Config:
@@ -104,15 +101,11 @@ class RecipientSchema(BaseModel):
     role: str  
     signed_at: Optional[datetime] = None
     created_at: datetime
-    recipient_fields : List[ActiveField] =[]
-    
+    recipient_fields :List[ActiveField] =None
     
 
     class Config:
         from_attributes = True
-
-
-
 
 
 class UserDocument(BaseModel):
@@ -130,6 +123,7 @@ class UserDocument(BaseModel):
         from_attributes = True
 
 
+#########################################################################################################################
 
 # Request schema
 class Recipient(BaseModel):

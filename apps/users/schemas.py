@@ -115,10 +115,9 @@ class UserDocument(BaseModel):
     createdAt: Optional[datetime] = None
     file_data: Optional[str] = None
     updatedAt: Optional[datetime] = None
-    status : Optional[bool] =None
+    status: DocumentStatus = DocumentStatus.DRAFT
     recipients: List[RecipientSchema] = []
 
-  
 
 
     class Config:

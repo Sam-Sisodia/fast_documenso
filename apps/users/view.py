@@ -539,185 +539,86 @@ class RecipientManager:
      
     @router.post("/sign-document/{recipient_token}")
     async def sign_document(
-        request: schemas.SignDocuments,  # Request schema for signing documents
-        db: Session = Depends(get_db),  # Dependency for getting the database session
-        userId: int = Depends(get_current_user)  # Dependency for getting the current user ID
+        request: schemas.SignDocuments, 
+        db: Session = Depends(get_db), 
+        userId: int = Depends(get_current_user)  
     ):
-        # Fetch recipient by the provided token from the URL path
+        
         recipient = db.query(DocumentSharedLink).filter(DocumentSharedLink.token == request.token).first()
 
         # If no recipient is found, raise a 404 error
         if not recipient:
             raise HTTPException(status_code=404, detail="Recipient not found")
 
-        # Get the current UTC time when the recipient is signing the document
+       
         current_time = datetime.utcnow()
         document_type = db.query(Document).filter(Document.id == recipient.document_id).first()
 
-        # Check if the document signing order is SEQUENTIAL
         if document_type.signing_order == SigningOrder.SEQUENTIAL:
-        
-            # Fetch all recipients for this document in the correct signing order
+    
             recipients_in_order = db.query(CheckFields).filter(
-                CheckFields.document_id == recipient.document_id,  # Ensure it belongs to the same document
-                CheckFields.recipient_id.isnot(None)  # Make sure to only include recipients
-            ).order_by(CheckFields.order.asc()).all()  # Order by the 'order' field (the signing order)
+                CheckFields.document_id == recipient.document_id,  
+                CheckFields.recipient_id.isnot(None) 
+            ).order_by(CheckFields.order.asc()).all()  
 
-            # If no recipients are found for this document, raise a 404 error
             if not recipients_in_order:
                 raise HTTPException(status_code=404, detail="No recipients found for this document")
 
-            # Extract the list of recipient IDs in signing order
-            recipient_orders = [field.recipient_id for field in recipients_in_order]
 
-            # Ensure that the current recipient is part of the signing order
+            recipient_orders = [field.recipient_id for field in recipients_in_order]
             if recipient.recipient_id not in recipient_orders:
                 raise HTTPException(status_code=404, detail="Recipient not found in signing order")
 
-            # Check the position of the current recipient in the signing order
             recipient_position = recipient_orders.index(recipient.recipient_id)
 
-            # If the recipient is not the first one, check if the previous recipient has signed
+         
             if recipient_position > 0:
-                # Get the previous recipient's ID in the order
-                previous_recipient_id = recipient_orders[recipient_position - 1]
 
-                # Query the previous recipient from the Recipient table
+                previous_recipient_id = recipient_orders[recipient_position - 1]
                 previous_recipient = db.query(Recipient).filter(Recipient.id == previous_recipient_id).first()
 
-                # Fetch the 'CheckFields' record for the previous recipient to check if they signed
                 previous_field = db.query(CheckFields).filter(
                     CheckFields.document_id == recipient.document_id,
                     CheckFields.recipient_id == previous_recipient_id
                 ).first()
 
-                # If the previous recipient hasn't signed, raise an error
                 if not previous_field or not previous_field.inserted:
                     raise HTTPException(status_code=400, detail=f"Recipient {previous_recipient.email} must sign first")
 
-        # Fetch the current recipient's signing field from the 'CheckFields' table
+       
         current_field = db.query(CheckFields).filter(
             CheckFields.document_id == recipient.document_id,
             CheckFields.recipient_id == recipient.recipient_id
         ).first()
 
-        # If no signing field is found for the current recipient, raise a 404 error
         if not current_field:
             raise HTTPException(status_code=404, detail="Recipient's sign field not found")
-
-        # If the current recipient has already signed, raise a 400 error
+        
         if current_field.inserted:
             raise HTTPException(status_code=400, detail="Recipient already signed the document")
 
-        # Mark the current recipient's field as signed by updating the 'inserted' field and setting the sign time
         current_field.inserted = True
         current_field.signed_at = current_time
 
-        # Commit the changes to the database
-        db.commit()
 
-        # Return a success message with the recipient's email and their sign position (1-indexed for clarity)
+        db.commit()
+    
+        all_signed = db.query(CheckFields).filter(CheckFields.document_id == recipient.document_id,
+            CheckFields.inserted == False  
+        ).count() == 0  
+
+        if all_signed:
+            document_type.status = "COMPLETED" 
+            db.commit()
+
         return {
             "message": "Document signed successfully",
             "recipient": recipient.recipient.email,  # Returning the recipient's email who signed
-            # "sign_position": recipient_position + 1  # Returning the recipient's signing position (1-indexed)
+    
         }
 
 
-    # @router.post("/sign-document/{recipient_token}")
-    # async def sign_document(
-    #     request: schemas.SignDocuments,  # Request schema for signing documents
-    #     db: Session = Depends(get_db),  # Dependency for getting the database session
-    #     userId: int = Depends(get_current_user)  # Dependency for getting the current user ID
-    # ):
-    #     # Fetch recipient by the provided token from the URL path
-    #     recipient = db.query(DocumentSharedLink).filter(DocumentSharedLink.token == request.token).first()
-        
-    #     # If no recipient is found, raise a 404 error
-    #     if not recipient:
-    #         raise HTTPException(status_code=404, detail="Recipient not found")
-        
-    #     # Get the current UTC time when the recipient is signing the document
-    #     current_time = datetime.utcnow()
-    #     document_type = db.query(Document).filter(Document.id ==recipient.document_id).first()
-    #     print(document_type.signing_order.value)
-        
-    #     if document_type.signing_order == document_type.signing_order..value:
-    #         print("+++++++++")
-            
-        
-        
-        
-        
-
-    #     # Fetch all recipients for this document in the correct signing order
-    #     recipients_in_order = db.query(CheckFields).filter(
-    #         CheckFields.document_id == recipient.document_id,  # Ensure it belongs to the same document
-    #         CheckFields.recipient_id.isnot(None)  # Make sure to only include recipients
-    #     ).order_by(CheckFields.order.asc()).all()  # Order by the 'order' field (the signing order)
-
-    #     # If no recipients are found for this document, raise a 404 error
-    #     if not recipients_in_order:
-    #         raise HTTPException(status_code=404, detail="No recipients found for this document")
-
-    #     # Extract the list of recipient IDs in signing order
-    #     recipient_orders = [field.recipient_id for field in recipients_in_order]
-        
-    #     # Ensure that the current recipient is part of the signing order
-    #     if recipient.recipient_id not in recipient_orders:
-    #         raise HTTPException(status_code=404, detail="Recipient not found in signing order")
-
-    #     # Check the position of the current recipient in the signing order
-    #     recipient_position = recipient_orders.index(recipient.recipient_id)
-        
-    #     # If the recipient is not the first one, check if the previous recipient has signed
-    #     if recipient_position > 0:
-    #         # Get the previous recipient's ID in the order
-    #         previous_recipient_id = recipient_orders[recipient_position - 1]
-            
-    #         # Query the previous recipient from the Recipient table
-    #         previous_recipient = db.query(Recipient).filter(Recipient.id == previous_recipient_id).first()
-
-    #         # Fetch the 'CheckFields' record for the previous recipient to check if they signed
-    #         previous_field = db.query(CheckFields).filter(
-    #             CheckFields.document_id == recipient.document_id,
-    #             CheckFields.recipient_id == previous_recipient_id
-    #         ).first()
-
-    #         # If the previous recipient hasn't signed, raise an error
-    #         if not previous_field or not previous_field.inserted:
-    #             raise HTTPException(status_code=400, detail=f"Recipient {previous_recipient.email} must sign first")
-
-    #     # Fetch the current recipient's signing field from the 'CheckFields' table
-    #     current_field = db.query(CheckFields).filter(
-    #         CheckFields.document_id == recipient.document_id,
-    #         CheckFields.recipient_id == recipient.recipient_id
-    #     ).first()
-
-    #     # If no signing field is found for the current recipient, raise a 404 error
-    #     if not current_field:
-    #         raise HTTPException(status_code=404, detail="Recipient's sign field not found")
-
-    #     # If the current recipient has already signed, raise a 400 error
-    #     if current_field.inserted:
-    #         raise HTTPException(status_code=400, detail="Recipient already signed the document")
-
-    #     # Mark the current recipient's field as signed by updating the 'inserted' field and setting the sign time
-    #     current_field.inserted = True
-    #     current_field.signed_at = current_time
-
-    #     # Commit the changes to the database
-    #     db.commit()
-
-    #     # Return a success message with the recipient's email and their sign position (1-indexed for clarity)
-    #     return {
-    #         "message": "Document signed successfully",
-    #         "recipient": recipient.recipient.email,  # Returning the recipient's email who signed
-    #         "sign_position": recipient_position + 1  # Returning the recipient's signing position (1-indexed)
-    #     }
-
-            
-
+    
             
 
    

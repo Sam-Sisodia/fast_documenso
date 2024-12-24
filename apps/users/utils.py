@@ -111,7 +111,7 @@ def recipientsmail(document_links,subject,message):
         sender_email = "sajal@example.com"
         receiver_email = link.recipient
         subject =    subject  if subject else  "Shared Documents" 
-        url = f'http://127.0.0.1:8000/api/document-sign/{link.document_id}/?token={link.token}'
+        url = f'http://127.0.0.1:8000/api/document-sign/{link.token}'
         user_message = message if message else ""
         body = f"{user_message} Click on link to open the Document {url}"
        

@@ -15,8 +15,15 @@ class RecipientRole(str, Enum):
     APPROVER = "APPROVER",
     CC="CC"
     VIEWER= "VIEWER"
+    
+    
+    
+    
 
-
+class SigningOrder(str, Enum):
+    PARALLEL= "PARALLEL",
+    VIEWER = "VIEWER",
+ 
 # export const FieldType= {
 #     "SIGNATURE":"SIGNATURE",
 #     "NAME":"NAME",

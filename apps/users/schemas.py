@@ -19,7 +19,6 @@ class UserResponse(BaseModel):
     username: str
     email: EmailStr
 
-    
     class Config:
         from_attributes = True
 
@@ -59,7 +58,6 @@ class GetRecipients(BaseModel):
 class FieldsType(BaseModel):
     id: Optional[int] = None
     name: str
-   
 
     class Config:
         from_attributes = True  
@@ -117,6 +115,7 @@ class UserDocument(BaseModel):
     updatedAt: Optional[datetime] = None
     status: DocumentStatus = DocumentStatus.DRAFT
     recipients: List[RecipientSchema] = []
+    note : Optional[str] = None
 
 
 
@@ -131,7 +130,7 @@ class Recipient(BaseModel):
     name: str
     email: EmailStr
     role: RecipientRole
-    # order: int
+    
 
 class AssignDocumnetRecipient(BaseModel):
     document_id: int
@@ -172,8 +171,7 @@ class RemoveDocumentFields(BaseModel):
 
 
 
-#Send document 
-
+#Send document  #####
 
 
 class SendDocuments(BaseModel):
@@ -183,5 +181,41 @@ class SendDocuments(BaseModel):
     subject : Optional[str] = None
     message : Optional[str] = None
 
+    class Config:
+        from_attributes = True
+        
+    
+    
+
+
+
+class GetSignDocumentRecipientSchema(BaseModel):
+    id: int
+    name: str
+    email: str
+    role: str  
+    signed_at: Optional[datetime] = None
+    created_at: datetime
+
+    
+
+class GetSignDocument(BaseModel):
+    id: Optional[int] = None
+    title: Optional[str] = None
+    userId: Optional[int] = None
+    createdAt: Optional[datetime] = None
+    file_data: Optional[str] = None
+    updatedAt: Optional[datetime] = None
+    recipients: List[RecipientSchema] = []
+   
+    class Config:
+        from_attributes = True
+
+
+
+
+class SignDocuments(BaseModel):
+    token : Optional[str] = None
+    fields: List[int]
     class Config:
         from_attributes = True

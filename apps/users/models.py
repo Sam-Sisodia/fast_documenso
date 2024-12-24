@@ -3,7 +3,7 @@ from sqlalchemy import  Enum as SQLAlchemyEnum
 from core.database import Base  # Import Base instead of redefining it
 from datetime import datetime
 from sqlalchemy.orm import relationship
-from apps.users.app_enum import DocumentStatus,RecipientRole
+from apps.users.app_enum import DocumentStatus,RecipientRole,SigningOrder
 from sqlalchemy import ForeignKey
 
 
@@ -16,8 +16,6 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     signature = Column(String, nullable=True) 
-
-    # documents = relationship('Document', backref='user', lazy='dynamic')
     documents = relationship('Document', back_populates='user')
 
 class Document(Base):
@@ -25,12 +23,13 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
-    userId = Column(Integer, ForeignKey('users.id'), nullable=True)  # Foreign key to User model
+    userId = Column(Integer, ForeignKey('users.id'), nullable=True)  
     file_data = Column(String, nullable=True)
     createdAt = Column(DateTime, default=datetime.utcnow)
     updatedAt = Column(DateTime, default=datetime.utcnow)
     status = Column(SQLAlchemyEnum(DocumentStatus), default=DocumentStatus.DRAFT)
     is_send = Column(Boolean, default=False)
+    note = Column(String,nullable=True)
     user = relationship('User', back_populates='documents')
     documentsharedlinks = relationship(
         "DocumentSharedLink",
@@ -42,8 +41,6 @@ class Document(Base):
         back_populates="check_fields_document",
         cascade="all, delete-orphan"
     )
-
-    # Many-to-many relationship with Recipients (handled by ondelete="CASCADE" at DB level)
     recipients = relationship(
         'Recipient',
         secondary="document_recipient",
@@ -59,12 +56,12 @@ class Recipient(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     email = Column(String, nullable=False)
-    role = Column(SQLAlchemyEnum(RecipientRole), nullable=False)  # Role of the recipient
+    role = Column(SQLAlchemyEnum(RecipientRole), nullable=False) 
     created_at = Column(DateTime, default=datetime.utcnow)
 
     documents = relationship(
         'Document',
-        secondary="document_recipient",  # Use the association table directly
+        secondary="document_recipient", 
         back_populates='recipients'
     )
     shared_link_recipient = relationship("DocumentSharedLink", back_populates='recipient')
@@ -75,14 +72,13 @@ class DocumentSharedLink(Base):
     __tablename__ = 'documentsharedlinks'
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=True)
-    recipient_id = Column(Integer, ForeignKey('recipients.id', ondelete="CASCADE"), nullable=True)  # ForeignKey to recipients
+    recipient_id = Column(Integer, ForeignKey('recipients.id', ondelete="CASCADE"), nullable=True)  
     token = Column(String, nullable=True)
     document = relationship("Document", back_populates="documentsharedlinks")
     recipient = relationship("Recipient", back_populates="shared_link_recipient")
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# Define the association table AFTER both classes are defined
 document_recipient_association = Table(
     'document_recipient',
     Base.metadata,
@@ -108,6 +104,10 @@ class CheckFields(Base):
     width = Column(String, nullable=True) 
     height = Column(String, nullable=True) 
     page_no = Column(String, nullable=True) 
+    inserted = Column(Boolean, default=False)
+    signed_at = Column(DateTime, nullable=True)
+    is_current = Column(Boolean, default=False)  
+    # signing_order =  Column(SQLAlchemyEnum(SigningOrder), nullable=True)
     document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=True) 
     field_id  = Column(Integer, ForeignKey('fieldtype.id', ondelete="CASCADE"),nullable=True)
     recipient_id= Column(Integer, ForeignKey('recipients.id', ondelete="CASCADE"),nullable=True)
@@ -125,10 +125,10 @@ class DocumentSigningProcess(Base):
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=True)
     recipient_id = Column(Integer, ForeignKey('recipients.id', ondelete="CASCADE"), nullable=True)
-    signed_at = Column(DateTime, nullable=True)  # When the recipient signed
+    signed_at = Column(DateTime, nullable=True)  
     sign_status = Column(Boolean, default=False)
-    order = Column(Integer, nullable=False, default=1)  # Signing order
-    is_current = Column(Boolean, default=False)  # Indicates if this is the active signing step
+    order = Column(Integer, nullable=False, default=1)  
+    is_current = Column(Boolean, default=False)  
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 

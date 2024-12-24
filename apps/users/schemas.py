@@ -2,8 +2,8 @@ from pydantic import BaseModel, EmailStr,root_validator,field_serializer
 from typing import Optional
 from io import BytesIO
 from sqlalchemy import Column, Integer, String,LargeBinary,DateTime
-from apps.users.app_enum import DocumentStatus
-from apps.users.app_enum import RecipientRole
+from apps.users.app_enum import DocumentStatus,SigningOrder,RecipientRole
+
 from typing import List
 from datetime import datetime
 
@@ -113,15 +113,17 @@ class UserDocument(BaseModel):
     createdAt: Optional[datetime] = None
     file_data: Optional[str] = None
     updatedAt: Optional[datetime] = None
-    status: DocumentStatus = DocumentStatus.DRAFT
+      
     recipients: List[RecipientSchema] = []
     note : Optional[str] = None
+    status: DocumentStatus = DocumentStatus.DRAFT
+    # signing_order : SigningOrder = SigningOrder.PARALLEL
+    signing_order: Optional[SigningOrder] = None 
 
 
 
     class Config:
         from_attributes = True
-
 
 #########################################################################################################################
 

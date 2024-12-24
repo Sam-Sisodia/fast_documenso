@@ -11,8 +11,8 @@ class DocumentStatus(str, Enum):
 
 
 class RecipientRole(str, Enum):
-    SIGNER= "SIGNER",
-    APPROVER = "APPROVER",
+    SIGNER= "SIGNER"
+    APPROVER = "APPROVER"
     CC="CC"
     VIEWER= "VIEWER"
     
@@ -21,8 +21,8 @@ class RecipientRole(str, Enum):
     
 
 class SigningOrder(str, Enum):
-    PARALLEL= "PARALLEL",
-    VIEWER = "VIEWER",
+    PARALLEL= "PARALLEL"
+    SEQUENTIAL = "SEQUENTIAL"
  
 # export const FieldType= {
 #     "SIGNATURE":"SIGNATURE",

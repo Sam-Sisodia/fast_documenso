@@ -28,6 +28,7 @@ class Document(Base):
     createdAt = Column(DateTime, default=datetime.utcnow)
     updatedAt = Column(DateTime, default=datetime.utcnow)
     status = Column(SQLAlchemyEnum(DocumentStatus), default=DocumentStatus.DRAFT)
+    signing_order =  Column(SQLAlchemyEnum(SigningOrder), default=SigningOrder.PARALLEL)
     is_send = Column(Boolean, default=False)
     note = Column(String,nullable=True)
     user = relationship('User', back_populates='documents')
@@ -106,8 +107,8 @@ class CheckFields(Base):
     page_no = Column(String, nullable=True) 
     inserted = Column(Boolean, default=False)
     signed_at = Column(DateTime, nullable=True)
-    is_current = Column(Boolean, default=False)  
-    # signing_order =  Column(SQLAlchemyEnum(SigningOrder), nullable=True)
+    is_current = Column(Boolean, default=False) 
+    order = Column(Integer, nullable=True,default=0) 
     document_id = Column(Integer, ForeignKey('documents.id', ondelete="CASCADE"), nullable=True) 
     field_id  = Column(Integer, ForeignKey('fieldtype.id', ondelete="CASCADE"),nullable=True)
     recipient_id= Column(Integer, ForeignKey('recipients.id', ondelete="CASCADE"),nullable=True)
@@ -115,6 +116,35 @@ class CheckFields(Base):
     check_fields_document = relationship("Document", back_populates="documnet_fields")
     checktypefields =relationship("FieldType", back_populates="typefileds")
     recipients =relationship("Recipient", back_populates="recipient_fields")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

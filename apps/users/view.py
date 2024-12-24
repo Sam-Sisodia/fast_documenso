@@ -26,8 +26,6 @@ def ss(db: Session):
     nn = db.query(FieldType).all()  # Query FieldType table
     return nn
 
-
-
 @router.post("/register",response_model=schemas.UserResponse)
 def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == request.email).first()
@@ -51,7 +49,6 @@ def register_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
   
-
 
 @router.post("/token/refresh", response_model=dict)
 def refresh_access_token(refresh_token: str):
@@ -101,7 +98,6 @@ def user_login(request: schemas.UserLogin, db: Session = Depends(get_db)):
                          "token_type": "bearer",
                          "refresh_token": refresh_token,
                          "expire_time": utils.ACCESS_TOKEN_EXPIRE_MINUTES})
-
 
 
 class DocumentManager:
@@ -236,11 +232,6 @@ class DocumentManager:
             db.rollback()  
             raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
 
-
-        
-
-
-
 class FieldTypeManager:
     @router.post("/add-fields", response_model=schemas.FieldsType)
     async def add_fields(request: schemas.FieldsType, userId: int = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -264,9 +255,6 @@ class FieldTypeManager:
         data = db.query(FieldType).all()
         return data
         
-        
-
-
 
 class RecipientManager:
     @router.get("/get-recipients/", response_model=List[schemas.GetRecipients])
@@ -442,9 +430,6 @@ class RecipientManager:
 
         return {"detail": "Fields successfully deleted"}
 
-       
-                
-
 
 
     @router.post("/send-documents")
@@ -571,7 +556,6 @@ class RecipientManager:
 
             recipient_position = recipient_orders.index(recipient.recipient_id)
 
-         
             if recipient_position > 0:
 
                 previous_recipient_id = recipient_orders[recipient_position - 1]

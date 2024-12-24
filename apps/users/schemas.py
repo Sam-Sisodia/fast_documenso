@@ -189,16 +189,7 @@ class SendDocuments(BaseModel):
 
 
 
-class GetSignDocumentRecipientSchema(BaseModel):
-    id: int
-    name: str
-    email: str
-    role: str  
-    signed_at: Optional[datetime] = None
-    created_at: datetime
-
     
-
 class GetSignDocument(BaseModel):
     id: Optional[int] = None
     title: Optional[str] = None
@@ -216,6 +207,6 @@ class GetSignDocument(BaseModel):
 
 class SignDocuments(BaseModel):
     token : Optional[str] = None
-    fields: List[int]
+    fields: List[int] =[]
     class Config:
         from_attributes = True

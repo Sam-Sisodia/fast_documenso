@@ -496,13 +496,13 @@ class RecipientManager:
 
           
           
-    @router.get("/document-sign/{recipient_token}",response_model=schemas.GetSignDocument)
+    @router.get("/get-sign-document/{recipient_token}",response_model=schemas.GetSignDocument)
     async def get_recipient_document(
         recipient_token: str,
         db: Session = Depends(get_db),
         userId: int = Depends(get_current_user)):
         sign_recipient = db.query(DocumentSharedLink).filter(DocumentSharedLink.token == recipient_token).first()
-        print("+++++++++++++++++++++",sign_recipient.recipient_id)
+      
         
         if not sign_recipient:
             raise HTTPException(status_code=404, detail="Recipient not found")
@@ -527,9 +527,7 @@ class RecipientManager:
 
                 recipient_data = schemas.RecipientSchema.from_orm(recipient)
                 recipient_data.recipient_fields = recipient_fields
-                break  # Only need the matching recipient data
-
-        # If recipient data is found, return document data along with recipient fields
+                break  
         if recipient_data:
             document_data = schemas.UserDocument.from_orm(document)
             document_data.recipients = [recipient_data]
@@ -538,18 +536,9 @@ class RecipientManager:
             raise HTTPException(status_code=404, detail="Recipient data not found")
      
         
-        
-        
-    
-        
-        
-        
-        
-        
-        
-        
+
             
-    @router.post("/document-sign}/{recipient_token}")
+    @router.post("/sign-document/{recipient_token}")
     async def sign_document(
         request: schemas.SignDocuments,
         db: Session = Depends(get_db),
@@ -561,6 +550,8 @@ class RecipientManager:
             raise HTTPException(status_code=404, detail="Recipient not found")
         
         current_time = datetime.utcnow()
+        updated_fields = []
+
         for field_id in request.fields:
             sign_field = db.query(CheckFields).filter(
                 CheckFields.document_id == recipient.document_id,
@@ -570,14 +561,23 @@ class RecipientManager:
 
             if not sign_field:
                 raise HTTPException(status_code=404, detail=f"Field ID {field_id} not found for the recipient")
+            
+            if sign_field.inserted:
+                raise HTTPException(status_code=400, detail=f"Field  already submitted")
+            
             sign_field.inserted = True
             sign_field.signed_at = current_time
+            updated_fields.append(field_id)
 
         # Commit the changes
         db.commit()
 
-        return {"message": "Document fields signed successfully"}
-     
+        return {
+            # "token": request.token,
+            # "fields": updated_fields,
+            "message": "Document fields signed successfully"
+        }
+
 
             
             
